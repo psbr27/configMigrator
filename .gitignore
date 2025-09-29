@@ -1,0 +1,129 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Configuration Migration Tool specific
+# Generated/migrated configuration files
+migrated-*.yaml
+migrated-*.yml
+*-migrated.yaml
+*-migrated.yml
+
+# Test output files
+test-*.yaml
+test-*.yml
+test-*.json
+
+# Migration logs
+*-migration-log.json
+migration-*.log
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+temp-*
+tmp-*
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# OS generated files
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Example/template files that might contain sensitive data
+# (Keep the reference templates but ignore any customized versions)
+*-custom-*.yaml
+*-production-*.yaml
+*-prod-*.yaml
+*-staging-*.yaml
+*-dev-*.yaml
+
+# Output directories
+output/
+results/
+exports/
+yaml-files/

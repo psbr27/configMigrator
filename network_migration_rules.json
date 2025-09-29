@@ -1,0 +1,132 @@
+{
+  "network_critical_patterns": [
+    {
+      "pattern": ".*cis\\.f5\\.com/as3-(tenant|app|pool)",
+      "category": "f5_integration",
+      "priority": 100,
+      "description": "F5 BIG-IP Container Ingress Services labels"
+    },
+    {
+      "pattern": ".*sqlgeorepsvclabels.*labels",
+      "category": "f5_integration",
+      "priority": 100,
+      "description": "SQL pod geo-replication F5 labels"
+    },
+    {
+      "pattern": ".*\\.service\\.labels",
+      "category": "service_discovery",
+      "priority": 90,
+      "description": "Kubernetes service labels for discovery"
+    },
+    {
+      "pattern": ".*connectivityService\\.labels",
+      "category": "service_discovery",
+      "priority": 90,
+      "description": "Connectivity service labels"
+    },
+    {
+      "pattern": ".*metallb\\.universe\\.tf/.*",
+      "category": "load_balancer",
+      "priority": 85,
+      "description": "MetalLB load balancer annotations"
+    },
+    {
+      "pattern": ".*oracle\\.com\\.cnc/.*",
+      "category": "oracle_cnf",
+      "priority": 80,
+      "description": "Oracle Cloud Native Framework annotations"
+    },
+    {
+      "pattern": "global\\.commonlabels",
+      "category": "service_mesh",
+      "priority": 95,
+      "description": "Global common labels for service mesh identification"
+    },
+    {
+      "pattern": ".*istio\\.io/.*",
+      "category": "service_mesh",
+      "priority": 75,
+      "description": "Istio service mesh annotations"
+    },
+    {
+      "pattern": ".*labels.*app\\b",
+      "category": "app_identification",
+      "priority": 70,
+      "description": "Application identification labels"
+    }
+  ],
+  "critical_annotation_paths": [
+    "mgm.annotations",
+    "ndb.annotations",
+    "api.annotations",
+    "api.egressannotations",
+    "api.externalService.labels",
+    "api.connectivityService.labels",
+    "api.ndbapp.annotations",
+    "api.ndbapp.connectivityService.labels",
+    "api.ndbapp.service.labels",
+    "db-monitor-svc.podAnnotations",
+    "db-monitor-svc.service.labels",
+    "db-backup-manager-svc.service.labels"
+  ],
+  "network_annotation_patterns": [
+    "metallb\\.universe\\.tf/.*",
+    "cis\\.f5\\.com/.*",
+    "oracle\\.com\\.cnc/.*",
+    "istio\\.io/.*"
+  ],
+  "critical_annotations": [
+    "sidecar.istio.io/inject",
+    "sidecar.istio.io/proxyCPU",
+    "sidecar.istio.io/proxyCPULimit",
+    "sidecar.istio.io/proxyMemory",
+    "sidecar.istio.io/proxyMemoryLimit",
+    "proxy.istio.io/config",
+    "traffic.sidecar.istio.io/excludeInboundPorts",
+    "oracle.com/cnc"
+  ],
+  "version_update_rules": {
+    "target_version": "25.1.200",
+    "version_paths": [
+      "global.commonlabels.vz.webscale.com/version",
+      "global.version",
+      "global.image.tag"
+    ],
+    "component_image_paths": [
+      "*.image.tag",
+      "*.inframonitor.image.tag",
+      "*.sidecar.image.tag",
+      "*.initcontainer.image.tag",
+      "*.initsidecar.image.tag"
+    ]
+  },
+  "merge_strategies": {
+    "annotations": {
+      "strategy": "smart_merge",
+      "preserve_network_critical": true,
+      "maintain_array_format": true
+    },
+    "labels": {
+      "strategy": "preserve_with_enhancement",
+      "preserve_network_critical": true
+    },
+    "commonlabels": {
+      "strategy": "preserve_with_version_update",
+      "update_version_field": true
+    }
+  },
+  "validation_rules": {
+    "required_f5_labels": [
+      "cis.f5.com/as3-tenant",
+      "cis.f5.com/as3-app",
+      "cis.f5.com/as3-pool"
+    ],
+    "required_service_labels": [
+      "app"
+    ],
+    "network_connectivity_requirements": [
+      "*.service.labels",
+      "*.connectivityService.labels"
+    ]
+  }
+}

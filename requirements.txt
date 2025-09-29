@@ -1,0 +1,10 @@
+# Core dependencies
+ruamel.yaml>=0.17.32
+jsonschema>=4.19.0
+
+# Development dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0
+mypy>=1.5.0
+ruff>=0.0.280
+pre-commit>=3.3.0
