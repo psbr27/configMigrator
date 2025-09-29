@@ -1,5 +1,6 @@
 """Network-aware configuration preservation for maintaining connectivity during migrations."""
 
+import copy
 import json
 import re
 from dataclasses import dataclass
@@ -135,7 +136,7 @@ class NetworkPreservationEngine:
         self._merge_network_annotations(golden_old, template_new, enhanced_result)
 
         # Handle array-style annotations that need special conversion
-        self._fix_array_annotations(golden_old, enhanced_result)
+        self._fix_array_annotations(golden_old, template_new, enhanced_result)
 
         return enhanced_result
 
@@ -224,13 +225,66 @@ class NetworkPreservationEngine:
             new_annotations = self._get_nested_value(template_new, path)
             current_annotations = self._get_nested_value(result, path)
 
-            # If golden config has this path, always preserve it (even if empty)
+            # If golden config has this path, preserve it but filter out excluded annotations
             if old_annotations is not None:
-                # Preserve the golden config value exactly as-is, including empty dicts
-                self._set_nested_value(result, path, old_annotations)
+                filtered_annotations = self._filter_excluded_annotations(
+                    old_annotations
+                )
+                self._set_nested_value(result, path, filtered_annotations)
             elif new_annotations is not None:
                 # Only use new template value if golden config doesn't have this path at all
-                self._set_nested_value(result, path, new_annotations)
+                # Also filter excluded annotations from new template
+                filtered_new_annotations = self._filter_excluded_annotations(
+                    new_annotations
+                )
+                self._set_nested_value(result, path, filtered_new_annotations)
+
+    def _filter_excluded_annotations(self, annotations: Any) -> Any:
+        """Filter out excluded annotations from annotation data.
+
+        Args:
+            annotations: Annotation data (dict, list, or other format).
+
+        Returns:
+            Filtered annotation data with excluded annotations removed.
+        """
+        if annotations is None:
+            return None
+
+        excluded_annotations = self._rules.get("excluded_annotations", [])
+
+        if isinstance(annotations, dict):
+            # Dictionary format - filter out excluded keys
+            return {
+                key: value
+                for key, value in annotations.items()
+                if key not in excluded_annotations
+            }
+        elif isinstance(annotations, list):
+            # Array format - filter out excluded annotations
+            filtered_list = []
+            for item in annotations:
+                if isinstance(item, dict):
+                    # Filter out excluded keys from each dict item
+                    filtered_item = {
+                        key: value
+                        for key, value in item.items()
+                        if key not in excluded_annotations
+                    }
+                    if filtered_item:  # Only add non-empty dict items
+                        filtered_list.append(filtered_item)
+                elif isinstance(item, str) and ":" in item:
+                    # Handle "key: value" string format
+                    key = item.split(":", 1)[0].strip()
+                    if key not in excluded_annotations:
+                        filtered_list.append(item)
+                else:
+                    # Keep other formats as-is
+                    filtered_list.append(item)
+            return filtered_list
+        else:
+            # Other formats - return as-is
+            return annotations
 
     def _is_network_annotation(self, annotation_key: str) -> bool:
         """Check if an annotation key is network-critical.
@@ -244,8 +298,13 @@ class NetworkPreservationEngine:
         # Get patterns and critical annotations from rules
         network_annotation_patterns = self._rules.get("network_annotation_patterns", [])
         critical_annotations = self._rules.get("critical_annotations", [])
+        excluded_annotations = self._rules.get("excluded_annotations", [])
 
-        # Check exact matches first
+        # Check if explicitly excluded first
+        if annotation_key in excluded_annotations:
+            return False
+
+        # Check exact matches
         if annotation_key in critical_annotations:
             return True
 
@@ -363,13 +422,50 @@ class NetworkPreservationEngine:
 
         return summary
 
+    def filter_excluded_annotations_globally(
+        self, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Remove excluded annotations from all annotation paths in the configuration.
+
+        Args:
+            config: Configuration to filter.
+
+        Returns:
+            Configuration with excluded annotations removed.
+        """
+        if not self._rules.get("excluded_annotations"):
+            return config  # No exclusions to apply
+
+        # Create a copy to avoid modifying the original
+        filtered_config = copy.deepcopy(config)
+
+        # Find all annotation paths in the configuration
+        annotation_paths = [
+            path
+            for path in self._get_all_config_paths(filtered_config)
+            if "annotations" in path.lower()
+        ]
+
+        # Filter excluded annotations from each annotation path
+        for path in annotation_paths:
+            annotations = self._get_nested_value(filtered_config, path)
+            if annotations is not None:
+                filtered_annotations = self._filter_excluded_annotations(annotations)
+                self._set_nested_value(filtered_config, path, filtered_annotations)
+
+        return filtered_config
+
     def _fix_array_annotations(
-        self, golden_old: Dict[str, Any], result: Dict[str, Any]
+        self,
+        golden_old: Dict[str, Any],
+        template_new: Dict[str, Any],
+        result: Dict[str, Any],
     ) -> None:
         """Fix both array-style and dictionary-style annotations that need to be merged with new template structure.
 
         Args:
             golden_old: Original configuration with annotations.
+            template_new: New template configuration with annotations.
             result: Configuration to enhance.
         """
         # Get critical annotation paths from rules
@@ -377,43 +473,62 @@ class NetworkPreservationEngine:
 
         for path in critical_annotation_paths:
             old_annotations = self._get_nested_value(golden_old, path)
+            new_template_annotations = self._get_nested_value(template_new, path)
             current_annotations = self._get_nested_value(result, path)
 
-            # Process if old_annotations exists (including empty dict {})
-            if old_annotations is not None:
+            # Process if old_annotations exists OR new template has annotations
+            if old_annotations is not None or new_template_annotations is not None:
                 # Handle array-style annotations (convert to dict first)
-                if isinstance(old_annotations, list):
-                    old_annotations_dict = self._convert_array_annotations_to_dict(
-                        old_annotations
-                    )
-                elif isinstance(old_annotations, dict):
-                    old_annotations_dict = old_annotations
-                else:
-                    continue  # Skip unsupported annotation format
+                old_annotations_dict = {}
+                if old_annotations is not None:
+                    if isinstance(old_annotations, list):
+                        old_annotations_dict = self._convert_array_annotations_to_dict(
+                            old_annotations
+                        )
+                    elif isinstance(old_annotations, dict):
+                        old_annotations_dict = old_annotations
+
+                # Handle new template annotations
+                new_template_annotations_dict = {}
+                if new_template_annotations is not None:
+                    if isinstance(new_template_annotations, list):
+                        new_template_annotations_dict = (
+                            self._convert_array_annotations_to_dict(
+                                new_template_annotations
+                            )
+                        )
+                    elif isinstance(new_template_annotations, dict):
+                        new_template_annotations_dict = new_template_annotations
 
                 # Determine the format to maintain based on current annotations or path
                 maintain_array_format = False
                 if current_annotations and isinstance(current_annotations, list):
                     maintain_array_format = True
+                elif new_template_annotations and isinstance(
+                    new_template_annotations, list
+                ):
+                    maintain_array_format = True
+                elif old_annotations and isinstance(old_annotations, list):
+                    maintain_array_format = True
                 elif path.endswith(".annotations"):
                     # Most component annotations are in array format
                     maintain_array_format = True
 
-                # Process current annotations
-                if current_annotations and isinstance(current_annotations, list):
-                    current_annotations_dict = self._convert_array_annotations_to_dict(
-                        current_annotations
-                    )
-                elif current_annotations and isinstance(current_annotations, dict):
-                    current_annotations_dict = current_annotations
-                else:
-                    current_annotations_dict = {}
+                # Merge annotations: golden config + new template annotations
+                merged_annotations_dict = {}
+                excluded_annotations = self._rules.get("excluded_annotations", [])
 
-                # Merge annotations with golden config taking full precedence
-                merged_annotations_dict = {**old_annotations_dict}
-                # Only add new annotations that don't exist in golden config
-                for key, value in current_annotations_dict.items():
-                    if key not in merged_annotations_dict:
+                # Add old annotations (golden config) - these take precedence
+                for key, value in old_annotations_dict.items():
+                    if key not in excluded_annotations:
+                        merged_annotations_dict[key] = value
+
+                # Add new template annotations that don't exist in golden config and aren't excluded
+                for key, value in new_template_annotations_dict.items():
+                    if (
+                        key not in merged_annotations_dict
+                        and key not in excluded_annotations
+                    ):
                         merged_annotations_dict[key] = value
 
                 # Convert to appropriate format

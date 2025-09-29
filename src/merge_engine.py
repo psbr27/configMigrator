@@ -69,7 +69,12 @@ class MergeEngine:
             golden_config, template_new, final_config
         )
 
-        # Step 5: Log network preservation actions
+        # Step 5: Filter out excluded annotations from entire configuration
+        final_config = self.network_engine.filter_excluded_annotations_globally(
+            final_config
+        )
+
+        # Step 6: Log network preservation actions
         network_summary = self.network_engine.get_network_critical_summary(final_config)
         self._add_network_preservation_logs(conflict_log, network_summary)
 

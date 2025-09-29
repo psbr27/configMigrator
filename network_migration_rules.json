@@ -82,8 +82,9 @@
     "sidecar.istio.io/proxyMemory",
     "sidecar.istio.io/proxyMemoryLimit",
     "proxy.istio.io/config",
-    "traffic.sidecar.istio.io/excludeInboundPorts",
     "oracle.com/cnc"
+  ],
+  "excluded_annotations": [
   ],
   "version_update_rules": {
     "target_version": "25.1.200",

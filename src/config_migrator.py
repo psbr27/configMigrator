@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 try:
     from .conflict_logger import ConflictLogger
+    from .dynamic_discovery import DynamicStructuralDetector, MigrationSuggester
     from .merge_engine import MergeEngine
     from .validators import ConfigValidator
     from .yaml_processor import YAMLProcessor
@@ -15,6 +16,15 @@ except ImportError:
     from merge_engine import MergeEngine
     from validators import ConfigValidator
     from yaml_processor import YAMLProcessor
+
+    try:
+        from .dynamic_discovery import DynamicStructuralDetector, MigrationSuggester
+    except ImportError:
+        try:
+            from dynamic_discovery import DynamicStructuralDetector, MigrationSuggester
+        except ImportError:
+            DynamicStructuralDetector = None
+            MigrationSuggester = None
 
 
 class ConfigMigrator:
@@ -42,6 +52,8 @@ class ConfigMigrator:
         output_format: str = "json",
         dry_run: bool = False,
         verbose: bool = False,
+        enable_dynamic_discovery: bool = False,
+        dynamic_discovery_report_path: Optional[str] = None,
     ) -> bool:
         """Perform configuration migration.
 
@@ -55,6 +67,8 @@ class ConfigMigrator:
             output_format: Output format for log (json or csv).
             dry_run: If True, generate log without writing output config.
             verbose: Enable verbose output.
+            enable_dynamic_discovery: Enable intelligent structural migration discovery.
+            dynamic_discovery_report_path: Path to export dynamic discovery report.
 
         Returns:
             True if migration successful, False otherwise.
@@ -91,15 +105,41 @@ class ConfigMigrator:
                 verbose,
             )
 
-            # Step 3: Perform migration
+            # Step 3: Dynamic Discovery (if enabled)
+            dynamic_migration_map = {}
+            if enable_dynamic_discovery:
+                if DynamicStructuralDetector is None:
+                    print(
+                        "Warning: Dynamic discovery requested but not available. Skipping...",
+                        file=sys.stderr,
+                    )
+                else:
+                    if verbose:
+                        print("Running dynamic structural migration discovery...")
+
+                    dynamic_migration_map = self._run_dynamic_discovery(
+                        golden_config,
+                        template_old,
+                        template_new,
+                        verbose,
+                        dynamic_discovery_report_path,
+                    )
+
+            # Step 4: Perform migration
             if verbose:
                 print("Performing configuration migration...")
 
+            # Merge any discovered migrations with existing migration map
+            combined_migration_map = {**(migration_map or {}), **dynamic_migration_map}
+
             final_config, conflict_log = self.merge_engine.merge_configurations(
-                golden_config, template_old, template_new, migration_map
+                golden_config,
+                template_old,
+                template_new,
+                combined_migration_map if combined_migration_map else migration_map,
             )
 
-            # Step 4: Validate output
+            # Step 5: Validate output
             if verbose:
                 print("Validating merged configuration...")
 
@@ -111,13 +151,13 @@ class ConfigMigrator:
                 for error in output_validation_errors:
                     print(f"  - {error}", file=sys.stderr)
 
-            # Step 5: Generate reports
+            # Step 6: Generate reports
             if verbose:
                 print("Generating migration reports...")
 
             self._print_migration_summary(conflict_log, verbose)
 
-            # Step 6: Write outputs
+            # Step 7: Write outputs
             if not dry_run:
                 if verbose:
                     print(f"Writing output configuration to: {output_config_path}")
@@ -230,6 +270,76 @@ class ConfigMigrator:
 
         return golden_config, template_old, template_new, migration_map
 
+    def _run_dynamic_discovery(
+        self,
+        golden_config: Dict[str, Any],
+        template_old: Dict[str, Any],
+        template_new: Dict[str, Any],
+        verbose: bool,
+        report_path: Optional[str],
+    ) -> Dict[str, str]:
+        """Run dynamic structural migration discovery.
+
+        Args:
+            golden_config: Golden configuration with custom values.
+            template_old: Old template configuration.
+            template_new: New template configuration.
+            verbose: Enable verbose output.
+            report_path: Optional path to export discovery report.
+
+        Returns:
+            Dictionary mapping old paths to new paths for discovered migrations.
+        """
+        if DynamicStructuralDetector is None or MigrationSuggester is None:
+            return {}
+
+        try:
+            # Initialize dynamic discovery components
+            detector = DynamicStructuralDetector(enable_verbose_logging=verbose)
+            suggester = MigrationSuggester(enable_verbose_logging=verbose)
+
+            # Discover structural migrations
+            discoveries = detector.discover_structural_migrations(
+                golden_config, template_old, template_new
+            )
+
+            if verbose:
+                print(
+                    f"🔍 Dynamic discovery found {len(discoveries)} potential migrations"
+                )
+
+            # Generate migration report
+            report = suggester.generate_migration_report(discoveries)
+
+            # Export report if path provided
+            if report_path:
+                suggester.export_migration_report(report, report_path, "json")
+                if verbose:
+                    print(f"📝 Dynamic discovery report exported to: {report_path}")
+
+            # Apply automatic migrations to get high-confidence migration map
+            auto_migrations = detector.get_auto_apply_migrations(discoveries)
+            migration_map = suggester.create_migration_map(auto_migrations)
+
+            # Print summary
+            if verbose and discoveries:
+                print(
+                    f"🤖 Auto-applying {len(auto_migrations)} high-confidence migrations"
+                )
+                if len(auto_migrations) < len(discoveries):
+                    manual_count = len(discoveries) - len(auto_migrations)
+                    print(f"👀 {manual_count} migrations require manual review")
+
+            return migration_map
+
+        except Exception as e:
+            print(f"Warning: Dynamic discovery failed: {e}", file=sys.stderr)
+            if verbose:
+                import traceback
+
+                traceback.print_exc()
+            return {}
+
     def _print_migration_summary(
         self, conflict_log: List[Dict[str, Any]], verbose: bool
     ) -> None:
@@ -282,6 +392,11 @@ Examples:
   %(prog)s --golden-old config-v1.yaml --template-old template-v1.yaml \\
            --template-new template-v2.yaml --output-config config-v2.yaml \\
            --output-log migration-log.csv --format csv --dry-run --verbose
+
+  %(prog)s --golden-old config-v1.yaml --template-old template-v1.yaml \\
+           --template-new template-v2.yaml --output-config config-v2.yaml \\
+           --output-log migration-log.json --enable-dynamic-discovery \\
+           --dynamic-discovery-report discovery-report.json --verbose
         """,
     )
 
@@ -325,6 +440,15 @@ Examples:
         help="Generate log without writing output configuration",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument(
+        "--enable-dynamic-discovery",
+        action="store_true",
+        help="Enable dynamic structural migration discovery (experimental)",
+    )
+    parser.add_argument(
+        "--dynamic-discovery-report",
+        help="Path to export dynamic discovery report (optional, requires --enable-dynamic-discovery)",
+    )
     parser.add_argument("--version", action="version", version="ConfigMigrator 0.1.0")
 
     return parser
@@ -349,6 +473,8 @@ def main() -> None:
         output_format=args.format,
         dry_run=args.dry_run,
         verbose=args.verbose,
+        enable_dynamic_discovery=args.enable_dynamic_discovery,
+        dynamic_discovery_report_path=args.dynamic_discovery_report,
     )
 
     # Exit with appropriate code
