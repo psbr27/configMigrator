@@ -22,7 +22,7 @@ class ConflictLogger:
         target_value: Any,
         new_default_value: Any,
         reason: str,
-        manual_review: bool = False
+        manual_review: bool = False,
     ) -> None:
         """Add a new log entry to the conflict log.
 
@@ -36,8 +36,13 @@ class ConflictLogger:
             manual_review: Whether manual review is required.
         """
         entry = self.create_log_entry(
-            path, action_type, source_value, target_value,
-            new_default_value, reason, manual_review
+            path,
+            action_type,
+            source_value,
+            target_value,
+            new_default_value,
+            reason,
+            manual_review,
         )
         self.log_entries.append(entry)
 
@@ -49,7 +54,7 @@ class ConflictLogger:
         target_value: Any,
         new_default_value: Any,
         reason: str,
-        manual_review: bool = False
+        manual_review: bool = False,
     ) -> Dict[str, Any]:
         """Create a standardized log entry.
 
@@ -73,10 +78,12 @@ class ConflictLogger:
             "target_value": self._serialize_value(target_value),
             "new_default_value": self._serialize_value(new_default_value),
             "reason": reason,
-            "manual_review": manual_review
+            "manual_review": manual_review,
         }
 
-    def export_to_json(self, output_path: str, log_entries: Optional[List[Dict[str, Any]]] = None) -> None:
+    def export_to_json(
+        self, output_path: str, log_entries: Optional[List[Dict[str, Any]]] = None
+    ) -> None:
         """Export conflict log to JSON format.
 
         Args:
@@ -93,24 +100,30 @@ class ConflictLogger:
             "migration_summary": {
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "total_entries": len(entries_to_export),
-                "manual_review_required": sum(1 for entry in entries_to_export if entry.get("manual_review", False)),
-                "statistics": self._generate_statistics(entries_to_export)
+                "manual_review_required": sum(
+                    1
+                    for entry in entries_to_export
+                    if entry.get("manual_review", False)
+                ),
+                "statistics": self._generate_statistics(entries_to_export),
             },
-            "conflicts": entries_to_export
+            "conflicts": entries_to_export,
         }
 
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            with open(path, 'w', encoding='utf-8') as file:
+            with open(path, "w", encoding="utf-8") as file:
                 json.dump(output_data, file, indent=2, ensure_ascii=False)
         except OSError as e:
             raise OSError(f"Cannot write JSON file {output_path}: {e}") from e
         except (TypeError, ValueError) as e:
             raise ValueError(f"Cannot serialize log entries to JSON: {e}") from e
 
-    def export_to_csv(self, output_path: str, log_entries: Optional[List[Dict[str, Any]]] = None) -> None:
+    def export_to_csv(
+        self, output_path: str, log_entries: Optional[List[Dict[str, Any]]] = None
+    ) -> None:
         """Export conflict log to CSV format.
 
         Args:
@@ -130,12 +143,18 @@ class ConflictLogger:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         fieldnames = [
-            "timestamp", "path", "action_type", "source_value",
-            "target_value", "new_default_value", "reason", "manual_review"
+            "timestamp",
+            "path",
+            "action_type",
+            "source_value",
+            "target_value",
+            "new_default_value",
+            "reason",
+            "manual_review",
         ]
 
         try:
-            with open(path, 'w', newline='', encoding='utf-8') as file:
+            with open(path, "w", newline="", encoding="utf-8") as file:
                 writer = csv.DictWriter(file, fieldnames=fieldnames)
                 writer.writeheader()
 
@@ -154,7 +173,7 @@ class ConflictLogger:
         self,
         action_type: Optional[str] = None,
         manual_review_only: bool = False,
-        path_pattern: Optional[str] = None
+        path_pattern: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Filter log entries based on criteria.
 
@@ -169,17 +188,25 @@ class ConflictLogger:
         filtered = self.log_entries
 
         if action_type:
-            filtered = [entry for entry in filtered if entry.get("action_type") == action_type]
+            filtered = [
+                entry for entry in filtered if entry.get("action_type") == action_type
+            ]
 
         if manual_review_only:
-            filtered = [entry for entry in filtered if entry.get("manual_review", False)]
+            filtered = [
+                entry for entry in filtered if entry.get("manual_review", False)
+            ]
 
         if path_pattern:
-            filtered = [entry for entry in filtered if path_pattern in entry.get("path", "")]
+            filtered = [
+                entry for entry in filtered if path_pattern in entry.get("path", "")
+            ]
 
         return filtered
 
-    def get_summary_report(self, log_entries: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    def get_summary_report(
+        self, log_entries: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
         """Generate a summary report of the migration.
 
         Args:
@@ -188,10 +215,14 @@ class ConflictLogger:
         Returns:
             Dictionary containing summary statistics and recommendations.
         """
-        entries_to_analyze = log_entries if log_entries is not None else self.log_entries
+        entries_to_analyze = (
+            log_entries if log_entries is not None else self.log_entries
+        )
 
         statistics = self._generate_statistics(entries_to_analyze)
-        manual_review_entries = [entry for entry in entries_to_analyze if entry.get("manual_review", False)]
+        manual_review_entries = [
+            entry for entry in entries_to_analyze if entry.get("manual_review", False)
+        ]
 
         recommendations = self._generate_recommendations(entries_to_analyze, statistics)
 
@@ -202,7 +233,7 @@ class ConflictLogger:
             "statistics": statistics,
             "critical_paths": [entry["path"] for entry in manual_review_entries],
             "recommendations": recommendations,
-            "success_rate": self._calculate_success_rate(statistics)
+            "success_rate": self._calculate_success_rate(statistics),
         }
 
     def _serialize_value(self, value: Any) -> Any:
@@ -256,7 +287,7 @@ class ConflictLogger:
             "target_value": None,
             "new_default_value": None,
             "reason": "",
-            "manual_review": False
+            "manual_review": False,
         }
 
     def _generate_statistics(self, entries: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -273,7 +304,7 @@ class ConflictLogger:
                 "by_action_type": {},
                 "manual_review_count": 0,
                 "successful_overwrites": 0,
-                "data_loss_count": 0
+                "data_loss_count": 0,
             }
 
         by_action_type: Dict[str, int] = {}
@@ -298,10 +329,12 @@ class ConflictLogger:
             "by_action_type": by_action_type,
             "manual_review_count": manual_review_count,
             "successful_overwrites": successful_overwrites,
-            "data_loss_count": data_loss_count
+            "data_loss_count": data_loss_count,
         }
 
-    def _generate_recommendations(self, entries: List[Dict[str, Any]], statistics: Dict[str, Any]) -> List[str]:
+    def _generate_recommendations(
+        self, entries: List[Dict[str, Any]], statistics: Dict[str, Any]
+    ) -> List[str]:
         """Generate recommendations based on migration results.
 
         Args:
@@ -330,14 +363,18 @@ class ConflictLogger:
             )
 
         if total_conflicts == 0:
-            recommendations.append("No conflicts detected. Configuration migration completed successfully.")
+            recommendations.append(
+                "No conflicts detected. Configuration migration completed successfully."
+            )
         elif manual_review_count / total_conflicts > 0.5:
             recommendations.append(
                 "High number of manual review items detected. Consider reviewing template "
                 "compatibility or providing a migration map for renamed fields."
             )
 
-        structural_mismatches = statistics.get("by_action_type", {}).get("STRUCTURAL_MISMATCH", 0)
+        structural_mismatches = statistics.get("by_action_type", {}).get(
+            "STRUCTURAL_MISMATCH", 0
+        )
         if structural_mismatches > 0:
             recommendations.append(
                 f"{structural_mismatches} structural mismatches found. These may indicate "

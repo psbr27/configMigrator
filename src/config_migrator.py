@@ -41,7 +41,7 @@ class ConfigMigrator:
         migration_map_path: Optional[str] = None,
         output_format: str = "json",
         dry_run: bool = False,
-        verbose: bool = False
+        verbose: bool = False,
     ) -> bool:
         """Perform configuration migration.
 
@@ -65,8 +65,12 @@ class ConfigMigrator:
                 print("Validating input files...")
 
             validation_errors = self._validate_inputs(
-                golden_old_path, template_old_path, template_new_path,
-                output_config_path, output_log_path, migration_map_path
+                golden_old_path,
+                template_old_path,
+                template_new_path,
+                output_config_path,
+                output_log_path,
+                migration_map_path,
             )
 
             if validation_errors:
@@ -80,7 +84,11 @@ class ConfigMigrator:
                 print("Loading configuration files...")
 
             golden_config, template_old, template_new, migration_map = self._load_files(
-                golden_old_path, template_old_path, template_new_path, migration_map_path, verbose
+                golden_old_path,
+                template_old_path,
+                template_new_path,
+                migration_map_path,
+                verbose,
             )
 
             # Step 3: Perform migration
@@ -95,7 +103,9 @@ class ConfigMigrator:
             if verbose:
                 print("Validating merged configuration...")
 
-            output_validation_errors = self.validator.validate_output_config(final_config)
+            output_validation_errors = self.validator.validate_output_config(
+                final_config
+            )
             if output_validation_errors:
                 print("Output validation warnings:", file=sys.stderr)
                 for error in output_validation_errors:
@@ -131,6 +141,7 @@ class ConfigMigrator:
             print(f"Migration failed: {e}", file=sys.stderr)
             if verbose:
                 import traceback
+
                 traceback.print_exc()
             return False
 
@@ -141,7 +152,7 @@ class ConfigMigrator:
         template_new_path: str,
         output_config_path: str,
         output_log_path: str,
-        migration_map_path: Optional[str]
+        migration_map_path: Optional[str],
     ) -> List[str]:
         """Validate all input parameters.
 
@@ -165,7 +176,9 @@ class ConfigMigrator:
         errors.extend(input_errors)
 
         # Validate output paths
-        output_errors = self.validator.validate_output_paths(output_config_path, output_log_path)
+        output_errors = self.validator.validate_output_paths(
+            output_config_path, output_log_path
+        )
         errors.extend(output_errors)
 
         return errors
@@ -176,7 +189,7 @@ class ConfigMigrator:
         template_old_path: str,
         template_new_path: str,
         migration_map_path: Optional[str],
-        verbose: bool
+        verbose: bool,
     ) -> tuple:
         """Load all required files.
 
@@ -203,7 +216,7 @@ class ConfigMigrator:
         # Load optional migration map
         migration_map: Optional[Dict[str, str]] = None
         if migration_map_path:
-            with open(migration_map_path, encoding='utf-8') as file:
+            with open(migration_map_path, encoding="utf-8") as file:
                 migration_data = json.load(file)
 
             # Support both simple and complex migration map formats
@@ -217,7 +230,9 @@ class ConfigMigrator:
 
         return golden_config, template_old, template_new, migration_map
 
-    def _print_migration_summary(self, conflict_log: List[Dict[str, Any]], verbose: bool) -> None:
+    def _print_migration_summary(
+        self, conflict_log: List[Dict[str, Any]], verbose: bool
+    ) -> None:
         """Print migration summary to console.
 
         Args:
@@ -231,21 +246,21 @@ class ConfigMigrator:
         print(f"  Manual review required: {summary['manual_review_required']}")
         print(f"  Success rate: {summary['success_rate']:.1f}%")
 
-        if verbose and summary['statistics']['by_action_type']:
+        if verbose and summary["statistics"]["by_action_type"]:
             print("\nActions taken:")
-            for action_type, count in summary['statistics']['by_action_type'].items():
+            for action_type, count in summary["statistics"]["by_action_type"].items():
                 print(f"  {action_type}: {count}")
 
-        if summary['critical_paths']:
+        if summary["critical_paths"]:
             print("\nPaths requiring manual review:")
-            for path in summary['critical_paths'][:5]:  # Show first 5
+            for path in summary["critical_paths"][:5]:  # Show first 5
                 print(f"  - {path}")
-            if len(summary['critical_paths']) > 5:
+            if len(summary["critical_paths"]) > 5:
                 print(f"  ... and {len(summary['critical_paths']) - 5} more")
 
-        if summary['recommendations']:
+        if summary["recommendations"]:
             print("\nRecommendations:")
-            for rec in summary['recommendations']:
+            for rec in summary["recommendations"]:
                 print(f"  - {rec}")
 
 
@@ -267,67 +282,50 @@ Examples:
   %(prog)s --golden-old config-v1.yaml --template-old template-v1.yaml \\
            --template-new template-v2.yaml --output-config config-v2.yaml \\
            --output-log migration-log.csv --format csv --dry-run --verbose
-        """
+        """,
     )
 
     # Required arguments
-    required = parser.add_argument_group('required arguments')
+    required = parser.add_argument_group("required arguments")
     required.add_argument(
-        '--golden-old',
-        required=True,
-        help='Path to V_OLD golden configuration file'
+        "--golden-old", required=True, help="Path to V_OLD golden configuration file"
     )
     required.add_argument(
-        '--template-old',
-        required=True,
-        help='Path to V_OLD template file'
+        "--template-old", required=True, help="Path to V_OLD template file"
     )
     required.add_argument(
-        '--template-new',
-        required=True,
-        help='Path to V_NEW template file'
+        "--template-new", required=True, help="Path to V_NEW template file"
     )
     required.add_argument(
-        '--output-config',
+        "--output-config",
         required=True,
-        help='Path for output V_NEW golden configuration'
+        help="Path for output V_NEW golden configuration",
     )
     required.add_argument(
-        '--output-log',
-        required=True,
-        help='Path for migration conflict log'
+        "--output-log", required=True, help="Path for migration conflict log"
     )
 
     # Optional arguments
     parser.add_argument(
-        '--migration-map',
-        help='Path to JSON file with old-path to new-path mappings'
+        "--migration-map", help="Path to JSON file with old-path to new-path mappings"
     )
     parser.add_argument(
-        '--rules-file',
-        help='Path to network migration rules JSON file (default: network_migration_rules.json)'
+        "--rules-file",
+        help="Path to network migration rules JSON file (default: network_migration_rules.json)",
     )
     parser.add_argument(
-        '--format',
-        choices=['json', 'csv'],
-        default='json',
-        help='Output format for conflict log (default: json)'
+        "--format",
+        choices=["json", "csv"],
+        default="json",
+        help="Output format for conflict log (default: json)",
     )
     parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Generate log without writing output configuration'
+        "--dry-run",
+        action="store_true",
+        help="Generate log without writing output configuration",
     )
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        help='Enable verbose output'
-    )
-    parser.add_argument(
-        '--version',
-        action='version',
-        version='ConfigMigrator 0.1.0'
-    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument("--version", action="version", version="ConfigMigrator 0.1.0")
 
     return parser
 
@@ -350,7 +348,7 @@ def main() -> None:
         migration_map_path=args.migration_map,
         output_format=args.format,
         dry_run=args.dry_run,
-        verbose=args.verbose
+        verbose=args.verbose,
     )
 
     # Exit with appropriate code

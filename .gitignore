@@ -122,6 +122,26 @@ Desktop.ini
 *-staging-*.yaml
 *-dev-*.yaml
 
+# Security - Never commit sensitive files
+*.env*
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cert
+*.secrets
+*secret*
+*password*
+*credential*
+secrets/
+credentials/
+.aws/
+.ssh/
+config.json
+config.yaml
+config.yml
+
 # Output directories
 output/
 results/

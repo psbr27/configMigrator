@@ -10,7 +10,9 @@ class DiffAnalyzer:
         """Initialize the diff analyzer."""
         pass
 
-    def find_deleted_paths(self, old_template: Dict[str, Any], new_template: Dict[str, Any]) -> List[str]:
+    def find_deleted_paths(
+        self, old_template: Dict[str, Any], new_template: Dict[str, Any]
+    ) -> List[str]:
         """Find paths that exist in old template but not in new template.
 
         Args:
@@ -25,7 +27,9 @@ class DiffAnalyzer:
         deleted_paths = old_paths - new_paths
         return sorted(list(deleted_paths))
 
-    def find_added_paths(self, old_template: Dict[str, Any], new_template: Dict[str, Any]) -> List[str]:
+    def find_added_paths(
+        self, old_template: Dict[str, Any], new_template: Dict[str, Any]
+    ) -> List[str]:
         """Find paths that exist in new template but not in old template.
 
         Args:
@@ -40,7 +44,9 @@ class DiffAnalyzer:
         added_paths = new_paths - old_paths
         return sorted(list(added_paths))
 
-    def find_structural_changes(self, old_template: Dict[str, Any], new_template: Dict[str, Any]) -> Dict[str, str]:
+    def find_structural_changes(
+        self, old_template: Dict[str, Any], new_template: Dict[str, Any]
+    ) -> Dict[str, str]:
         """Find paths where the data type or structure changed between templates.
 
         Args:
@@ -78,7 +84,9 @@ class DiffAnalyzer:
                             changes.append(f"removed keys: {sorted(removed_keys)}")
                         if added_keys:
                             changes.append(f"added keys: {sorted(added_keys)}")
-                        structural_changes[path] = f"Structure changed - {', '.join(changes)}"
+                        structural_changes[
+                            path
+                        ] = f"Structure changed - {', '.join(changes)}"
 
         return structural_changes
 
@@ -105,13 +113,15 @@ class DiffAnalyzer:
             return result
 
         # Fallback to simple splitting if contextual traversal fails
-        keys = path.split('.')
+        keys = path.split(".")
         current = data
 
         for i, key in enumerate(keys):
             if not isinstance(current, dict):
-                current_path = '.'.join(keys[:i])
-                raise TypeError(f"Cannot traverse path '{path}': '{current_path}' is not a dictionary")
+                current_path = ".".join(keys[:i])
+                raise TypeError(
+                    f"Cannot traverse path '{path}': '{current_path}' is not a dictionary"
+                )
 
             if key not in current:
                 raise KeyError(f"Path '{path}' not found: key '{key}' missing")
@@ -133,7 +143,10 @@ class DiffAnalyzer:
         Returns:
             The value if found, None if not found.
         """
-        def _search_recursive(current_data: Dict[str, Any], current_path: str = "") -> Any:
+
+        def _search_recursive(
+            current_data: Dict[str, Any], current_path: str = ""
+        ) -> Any:
             if current_path == target_path:
                 return current_data
 
@@ -172,7 +185,7 @@ class DiffAnalyzer:
         if not path:
             raise ValueError("Path cannot be empty")
 
-        keys = path.split('.')
+        keys = path.split(".")
         current = data
 
         # Navigate to parent of target key
@@ -180,8 +193,10 @@ class DiffAnalyzer:
             if key not in current:
                 current[key] = {}
             elif not isinstance(current[key], dict):
-                current_path = '.'.join(keys[:i+1])
-                raise TypeError(f"Cannot set path '{path}': '{current_path}' is not a dictionary")
+                current_path = ".".join(keys[: i + 1])
+                raise TypeError(
+                    f"Cannot set path '{path}': '{current_path}' is not a dictionary"
+                )
             current = current[key]
 
         # Set the final value
@@ -204,7 +219,9 @@ class DiffAnalyzer:
         except (KeyError, TypeError):
             return False
 
-    def extract_custom_data(self, golden_config: Dict[str, Any], template_old: Dict[str, Any]) -> Dict[str, Any]:
+    def extract_custom_data(
+        self, golden_config: Dict[str, Any], template_old: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Extract custom configuration data by comparing golden config with old template.
 
         Args:
@@ -215,7 +232,9 @@ class DiffAnalyzer:
             Dictionary mapping paths to custom values that differ from template.
         """
         custom_data: Dict[str, Any] = {}
-        self._extract_custom_data_recursive(golden_config, template_old, custom_data, "")
+        self._extract_custom_data_recursive(
+            golden_config, template_old, custom_data, ""
+        )
         return custom_data
 
     def _extract_custom_data_recursive(
@@ -223,7 +242,7 @@ class DiffAnalyzer:
         golden: Dict[str, Any],
         template: Dict[str, Any],
         custom_data: Dict[str, Any],
-        prefix: str
+        prefix: str,
     ) -> None:
         """Recursively extract custom data, avoiding parent/child duplication.
 
@@ -242,7 +261,9 @@ class DiffAnalyzer:
             elif isinstance(golden_value, dict) and isinstance(template[key], dict):
                 # Both are dictionaries - recurse deeper, but also check if the dict as a whole differs
                 # Only include the parent dict if it has structural differences beyond just child values
-                self._extract_custom_data_recursive(golden_value, template[key], custom_data, current_path)
+                self._extract_custom_data_recursive(
+                    golden_value, template[key], custom_data, current_path
+                )
             else:
                 # Leaf values or type mismatch - compare directly
                 if golden_value != template[key]:
@@ -289,12 +310,16 @@ class DiffAnalyzer:
         if isinstance(value1, dict) and isinstance(value2, dict):
             if set(value1.keys()) != set(value2.keys()):
                 return False
-            return all(self.compare_values_deep(value1[k], value2[k]) for k in value1.keys())
+            return all(
+                self.compare_values_deep(value1[k], value2[k]) for k in value1.keys()
+            )
 
         elif isinstance(value1, list) and isinstance(value2, list):
             if len(value1) != len(value2):
                 return False
-            return all(self.compare_values_deep(v1, v2) for v1, v2 in zip(value1, value2))
+            return all(
+                self.compare_values_deep(v1, v2) for v1, v2 in zip(value1, value2)
+            )
 
         else:
             return value1 == value2

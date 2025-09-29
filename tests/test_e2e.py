@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """End-to-end test of the complete migration workflow."""
 
-import sys
-import os
-import yaml
 import json
-sys.path.insert(0, 'src')
+import os
+import sys
+
+import yaml
+
+sys.path.insert(0, "src")
 
 from config_migrator import ConfigMigrator
+
 
 def main():
     print("🚀 Starting End-to-End Migration Test")
@@ -24,7 +27,7 @@ def main():
         template_new_path="occndbtier_custom_values_25.1.200.yaml",
         output_config_path="e2e_test_output.yaml",
         output_log_path="e2e_test_log.json",
-        verbose=True
+        verbose=True,
     )
 
     if not success:
@@ -34,12 +37,12 @@ def main():
     print("✅ Migration completed successfully!")
 
     # Test 2: Verify conflict log structure
-    print(f"\n📋 Test 2: Verify Conflict Log")
-    with open('e2e_test_log.json', 'r') as f:
+    print("\n📋 Test 2: Verify Conflict Log")
+    with open("e2e_test_log.json") as f:
         log_data = json.load(f)
 
-    if 'migration_summary' in log_data:
-        summary = log_data['migration_summary']
+    if "migration_summary" in log_data:
+        summary = log_data["migration_summary"]
         print(f"  ✅ Total entries: {summary['total_entries']}")
         print(f"  ✅ Manual review required: {summary['manual_review_required']}")
         print(f"  ✅ Statistics: {summary['statistics']}")
@@ -47,14 +50,14 @@ def main():
         print("  ❌ Missing migration summary in log")
         return False
 
-    if 'conflicts' in log_data:
-        conflicts = log_data['conflicts']
+    if "conflicts" in log_data:
+        conflicts = log_data["conflicts"]
         print(f"  ✅ Conflicts logged: {len(conflicts)}")
 
         # Check for network preservation log entry
         network_entry_found = False
         for conflict in conflicts:
-            if conflict['path'] == '__NETWORK_PRESERVATION_SUMMARY__':
+            if conflict["path"] == "__NETWORK_PRESERVATION_SUMMARY__":
                 network_entry_found = True
                 print(f"  ✅ Network preservation summary: {conflict['source_value']}")
                 break
@@ -66,15 +69,15 @@ def main():
         return False
 
     # Test 3: Verify file integrity
-    print(f"\n📋 Test 3: Verify Output File Integrity")
+    print("\n📋 Test 3: Verify Output File Integrity")
 
     # Check output file exists and is valid YAML
-    if not os.path.exists('e2e_test_output.yaml'):
+    if not os.path.exists("e2e_test_output.yaml"):
         print("  ❌ Output configuration file not created")
         return False
 
     try:
-        with open('e2e_test_output.yaml', 'r') as f:
+        with open("e2e_test_output.yaml") as f:
             yaml.safe_load(f)
         print("  ✅ Output configuration is valid YAML")
     except yaml.YAMLError as e:
@@ -82,12 +85,12 @@ def main():
         return False
 
     # Check log file exists and is valid JSON
-    if not os.path.exists('e2e_test_log.json'):
+    if not os.path.exists("e2e_test_log.json"):
         print("  ❌ Output log file not created")
         return False
 
     try:
-        with open('e2e_test_log.json', 'r') as f:
+        with open("e2e_test_log.json") as f:
             json.load(f)
         print("  ✅ Output log is valid JSON")
     except json.JSONDecodeError as e:
@@ -98,12 +101,15 @@ def main():
     print("\n" + "=" * 50)
     print("🎉 END-TO-END TEST RESULTS")
     print("=" * 50)
-    print(f"✅ Migration workflow: SUCCESS")
-    print(f"✅ Conflict logging: SUCCESS")
-    print(f"✅ File integrity: SUCCESS")
-    print("\n🏆 Basic workflow tests passed! Run 'pytest tests/test_network_preservation.py' for detailed network tests.")
+    print("✅ Migration workflow: SUCCESS")
+    print("✅ Conflict logging: SUCCESS")
+    print("✅ File integrity: SUCCESS")
+    print(
+        "\n🏆 Basic workflow tests passed! Run 'pytest tests/test_network_preservation.py' for detailed network tests."
+    )
 
     return True
+
 
 if __name__ == "__main__":
     success = main()

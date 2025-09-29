@@ -42,7 +42,7 @@ class YAMLProcessor:
             raise ValueError(f"Path is not a file: {file_path}")
 
         try:
-            with open(path, encoding='utf-8') as file:
+            with open(path, encoding="utf-8") as file:
                 data = self.yaml.load(file)
         except PermissionError as e:
             raise PermissionError(f"Cannot read file {file_path}: {e}") from e
@@ -53,7 +53,9 @@ class YAMLProcessor:
             raise ValueError(f"YAML file is empty: {file_path}")
 
         if not isinstance(data, dict):
-            raise TypeError(f"YAML root must be a dictionary, got {type(data).__name__}: {file_path}")
+            raise TypeError(
+                f"YAML root must be a dictionary, got {type(data).__name__}: {file_path}"
+            )
 
         return data
 
@@ -75,7 +77,7 @@ class YAMLProcessor:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            with open(path, 'w', encoding='utf-8') as file:
+            with open(path, "w", encoding="utf-8") as file:
                 self.yaml.dump(data, file)
         except PermissionError as e:
             raise PermissionError(f"Cannot write to file {file_path}: {e}") from e
@@ -115,7 +117,9 @@ class YAMLProcessor:
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if not isinstance(key, (str, int, float, bool)):
-                    raise ValueError(f"Unsupported key type {type(key).__name__} at {path}.{key}")
+                    raise ValueError(
+                        f"Unsupported key type {type(key).__name__} at {path}.{key}"
+                    )
                 self._validate_nested_structure(value, f"{path}.{key}")
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
@@ -123,7 +127,7 @@ class YAMLProcessor:
         elif not isinstance(obj, (str, int, float, bool, type(None))):
             raise ValueError(f"Unsupported value type {type(obj).__name__} at {path}")
 
-    def check_file_permissions(self, file_path: str, mode: str = 'r') -> bool:
+    def check_file_permissions(self, file_path: str, mode: str = "r") -> bool:
         """Check if file has required permissions.
 
         Args:
@@ -134,9 +138,9 @@ class YAMLProcessor:
             True if file can be accessed with the specified mode.
         """
         try:
-            if mode == 'r':
+            if mode == "r":
                 return os.access(file_path, os.R_OK)
-            elif mode == 'w':
+            elif mode == "w":
                 # Check if file exists and is writable, or if parent dir is writable
                 if os.path.exists(file_path):
                     return os.access(file_path, os.W_OK)

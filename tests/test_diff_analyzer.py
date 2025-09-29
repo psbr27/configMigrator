@@ -15,78 +15,45 @@ class TestDiffAnalyzer:
     def test_find_deleted_paths(self) -> None:
         """Test finding paths deleted between templates."""
         old_template = {
-            "service": {
-                "name": "test",
-                "port": 8080,
-                "deprecated_setting": "value"
-            },
-            "removed_section": {
-                "config": "value"
-            }
+            "service": {"name": "test", "port": 8080, "deprecated_setting": "value"},
+            "removed_section": {"config": "value"},
         }
 
-        new_template = {
-            "service": {
-                "name": "test",
-                "port": 9000
-            }
-        }
+        new_template = {"service": {"name": "test", "port": 9000}}
 
         deleted_paths = self.analyzer.find_deleted_paths(old_template, new_template)
 
         expected_deleted = [
             "removed_section",
             "removed_section.config",
-            "service.deprecated_setting"
+            "service.deprecated_setting",
         ]
         assert sorted(deleted_paths) == sorted(expected_deleted)
 
     def test_find_added_paths(self) -> None:
         """Test finding paths added between templates."""
-        old_template = {
-            "service": {
-                "name": "test",
-                "port": 8080
-            }
-        }
+        old_template = {"service": {"name": "test", "port": 8080}}
 
         new_template = {
-            "service": {
-                "name": "test",
-                "port": 8080,
-                "new_setting": "value"
-            },
-            "new_section": {
-                "config": "value"
-            }
+            "service": {"name": "test", "port": 8080, "new_setting": "value"},
+            "new_section": {"config": "value"},
         }
 
         added_paths = self.analyzer.find_added_paths(old_template, new_template)
 
-        expected_added = [
-            "new_section",
-            "new_section.config",
-            "service.new_setting"
-        ]
+        expected_added = ["new_section", "new_section.config", "service.new_setting"]
         assert sorted(added_paths) == sorted(expected_added)
 
     def test_find_structural_changes(self) -> None:
         """Test finding structural changes between templates."""
-        old_template = {
-            "service": {
-                "timeout": 30,
-                "config": {
-                    "debug": True
-                }
-            }
-        }
+        old_template = {"service": {"timeout": 30, "config": {"debug": True}}}
 
         new_template = {
             "service": {
                 "timeout": "30s",  # Type change: int to str
-                "config": [         # Type change: dict to list
+                "config": [  # Type change: dict to list
                     {"name": "debug", "value": True}
-                ]
+                ],
             }
         }
 
@@ -99,14 +66,7 @@ class TestDiffAnalyzer:
 
     def test_get_nested_value(self) -> None:
         """Test getting values from nested paths."""
-        data = {
-            "service": {
-                "api": {
-                    "port": 8080,
-                    "host": "localhost"
-                }
-            }
-        }
+        data = {"service": {"api": {"port": 8080, "host": "localhost"}}}
 
         assert self.analyzer.get_nested_value(data, "service.api.port") == 8080
         assert self.analyzer.get_nested_value(data, "service.api.host") == "localhost"
@@ -127,13 +87,7 @@ class TestDiffAnalyzer:
 
     def test_set_nested_value(self) -> None:
         """Test setting values at nested paths."""
-        data = {
-            "service": {
-                "api": {
-                    "port": 8080
-                }
-            }
-        }
+        data = {"service": {"api": {"port": 8080}}}
 
         self.analyzer.set_nested_value(data, "service.api.port", 9000)
         assert data["service"]["api"]["port"] == 9000
@@ -151,13 +105,7 @@ class TestDiffAnalyzer:
 
     def test_path_exists(self) -> None:
         """Test checking if paths exist."""
-        data = {
-            "service": {
-                "api": {
-                    "port": 8080
-                }
-            }
-        }
+        data = {"service": {"api": {"port": 8080}}}
 
         assert self.analyzer.path_exists(data, "service") is True
         assert self.analyzer.path_exists(data, "service.api") is True
@@ -170,20 +118,16 @@ class TestDiffAnalyzer:
         golden_config = {
             "service": {
                 "name": "my-service",  # Custom value
-                "port": 8080,         # Same as template
-                "timeout": 60         # Custom value
+                "port": 8080,  # Same as template
+                "timeout": 60,  # Custom value
             },
-            "custom_section": {       # Completely custom
+            "custom_section": {  # Completely custom
                 "setting": "value"
-            }
+            },
         }
 
         template_old = {
-            "service": {
-                "name": "default-service",
-                "port": 8080,
-                "timeout": 30
-            }
+            "service": {"name": "default-service", "port": 8080, "timeout": 30}
         }
 
         custom_data = self.analyzer.extract_custom_data(golden_config, template_old)
@@ -191,7 +135,9 @@ class TestDiffAnalyzer:
         expected_custom = {
             "service.name": "my-service",
             "service.timeout": 60,
-            "custom_section": {"setting": "value"}  # Only the parent object, not individual children
+            "custom_section": {
+                "setting": "value"
+            },  # Only the parent object, not individual children
         }
 
         assert custom_data == expected_custom
@@ -199,34 +145,32 @@ class TestDiffAnalyzer:
     def test_compare_values_deep(self) -> None:
         """Test deep comparison of values."""
         # Test identical values
-        assert self.analyzer.compare_values_deep(
-            {"a": {"b": [1, 2, 3]}},
-            {"a": {"b": [1, 2, 3]}}
-        ) is True
+        assert (
+            self.analyzer.compare_values_deep(
+                {"a": {"b": [1, 2, 3]}}, {"a": {"b": [1, 2, 3]}}
+            )
+            is True
+        )
 
         # Test different types
-        assert self.analyzer.compare_values_deep(
-            {"a": "string"},
-            {"a": 123}
-        ) is False
+        assert self.analyzer.compare_values_deep({"a": "string"}, {"a": 123}) is False
 
         # Test different dict keys
-        assert self.analyzer.compare_values_deep(
-            {"a": 1, "b": 2},
-            {"a": 1, "c": 2}
-        ) is False
+        assert (
+            self.analyzer.compare_values_deep({"a": 1, "b": 2}, {"a": 1, "c": 2})
+            is False
+        )
 
         # Test different list lengths
-        assert self.analyzer.compare_values_deep(
-            [1, 2, 3],
-            [1, 2]
-        ) is False
+        assert self.analyzer.compare_values_deep([1, 2, 3], [1, 2]) is False
 
     def test_get_type_description(self) -> None:
         """Test getting type descriptions."""
         assert "empty dictionary" in self.analyzer.get_type_description({})
         assert "empty list" in self.analyzer.get_type_description([])
         assert "null" in self.analyzer.get_type_description(None)
-        assert "dictionary with 2 key(s)" in self.analyzer.get_type_description({"a": 1, "b": 2})
+        assert "dictionary with 2 key(s)" in self.analyzer.get_type_description(
+            {"a": 1, "b": 2}
+        )
         assert "list with 3 item(s)" in self.analyzer.get_type_description([1, 2, 3])
         assert "str: hello" in self.analyzer.get_type_description("hello")

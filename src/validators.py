@@ -23,7 +23,7 @@ class ConfigValidator:
         golden_old_path: str,
         template_old_path: str,
         template_new_path: str,
-        migration_map_path: Optional[str] = None
+        migration_map_path: Optional[str] = None,
     ) -> List[str]:
         """Validate all input files for migration.
 
@@ -42,7 +42,7 @@ class ConfigValidator:
         yaml_files = {
             "Golden Config (V_OLD)": golden_old_path,
             "Template (V_OLD)": template_old_path,
-            "Template (V_NEW)": template_new_path
+            "Template (V_NEW)": template_new_path,
         }
 
         for file_type, file_path in yaml_files.items():
@@ -63,7 +63,9 @@ class ConfigValidator:
 
         return errors
 
-    def validate_output_paths(self, output_config_path: str, output_log_path: str) -> List[str]:
+    def validate_output_paths(
+        self, output_config_path: str, output_log_path: str
+    ) -> List[str]:
         """Validate output file paths for writability.
 
         Args:
@@ -75,7 +77,10 @@ class ConfigValidator:
         """
         errors: List[str] = []
 
-        for file_type, file_path in [("Output Config", output_config_path), ("Output Log", output_log_path)]:
+        for file_type, file_path in [
+            ("Output Config", output_config_path),
+            ("Output Log", output_log_path),
+        ]:
             if not file_path:
                 errors.append(f"{file_type} path cannot be empty")
                 continue
@@ -86,11 +91,13 @@ class ConfigValidator:
                 try:
                     Path(parent_dir).mkdir(parents=True, exist_ok=True)
                 except (OSError, PermissionError):
-                    errors.append(f"Cannot create directory for {file_type}: {parent_dir}")
+                    errors.append(
+                        f"Cannot create directory for {file_type}: {parent_dir}"
+                    )
                     continue
 
             # Check write permissions
-            if not self.yaml_processor.check_file_permissions(file_path, 'w'):
+            if not self.yaml_processor.check_file_permissions(file_path, "w"):
                 errors.append(f"No write permission for {file_type}: {file_path}")
 
         return errors
@@ -120,7 +127,9 @@ class ConfigValidator:
         # Validate configuration depth (prevent excessive nesting)
         max_depth = self._get_max_depth(config)
         if max_depth > 20:  # Arbitrary reasonable limit
-            errors.append(f"Configuration nesting too deep ({max_depth} levels). Maximum recommended: 20")
+            errors.append(
+                f"Configuration nesting too deep ({max_depth} levels). Maximum recommended: 20"
+            )
 
         # Check for suspicious patterns
         suspicious_errors = self._check_suspicious_patterns(config)
@@ -128,7 +137,7 @@ class ConfigValidator:
 
         return errors
 
-    def check_file_permissions(self, file_path: str, mode: str = 'r') -> bool:
+    def check_file_permissions(self, file_path: str, mode: str = "r") -> bool:
         """Check file permissions wrapper.
 
         Args:
@@ -158,16 +167,20 @@ class ConfigValidator:
         # Validate path formats
         for old_path, new_path in migration_map.items():
             if not isinstance(old_path, str) or not isinstance(new_path, str):
-                errors.append(f"Migration paths must be strings: {old_path} -> {new_path}")
+                errors.append(
+                    f"Migration paths must be strings: {old_path} -> {new_path}"
+                )
                 continue
 
             if not old_path or not new_path:
-                errors.append(f"Migration paths cannot be empty: '{old_path}' -> '{new_path}'")
+                errors.append(
+                    f"Migration paths cannot be empty: '{old_path}' -> '{new_path}'"
+                )
                 continue
 
             # Check path format
             for path_type, path in [("old", old_path), ("new", new_path)]:
-                if path.startswith('.') or path.endswith('.') or '..' in path:
+                if path.startswith(".") or path.endswith(".") or ".." in path:
                     errors.append(f"Invalid {path_type} path format: '{path}'")
 
         # Check for circular references
@@ -202,7 +215,7 @@ class ConfigValidator:
             return errors
 
         # Check read permissions
-        if not self.check_file_permissions(file_path, 'r'):
+        if not self.check_file_permissions(file_path, "r"):
             errors.append(f"No read permission for {file_type}: {file_path}")
             return errors
 
@@ -233,12 +246,12 @@ class ConfigValidator:
             errors.append(f"Migration map file not found: {migration_map_path}")
             return errors
 
-        if not self.check_file_permissions(migration_map_path, 'r'):
+        if not self.check_file_permissions(migration_map_path, "r"):
             errors.append(f"No read permission for migration map: {migration_map_path}")
             return errors
 
         try:
-            with open(migration_map_path, encoding='utf-8') as file:
+            with open(migration_map_path, encoding="utf-8") as file:
                 migration_data = json.load(file)
 
             # Validate structure
@@ -263,10 +276,7 @@ class ConfigValidator:
         return errors
 
     def _validate_file_relationships(
-        self,
-        golden_old_path: str,
-        template_old_path: str,
-        template_new_path: str
+        self, golden_old_path: str, template_old_path: str, template_new_path: str
     ) -> List[str]:
         """Validate relationships between input files.
 
@@ -286,14 +296,18 @@ class ConfigValidator:
             template_new = self.yaml_processor.load_yaml_file(template_new_path)
 
             # Check if golden config is compatible with old template
-            compatibility_errors = self._check_template_compatibility(golden_config, template_old)
+            compatibility_errors = self._check_template_compatibility(
+                golden_config, template_old
+            )
             if compatibility_errors:
                 errors.append(
                     f"Golden config incompatible with old template: {'; '.join(compatibility_errors)}"
                 )
 
             # Check if templates have reasonable structural similarity
-            similarity_errors = self._check_template_similarity(template_old, template_new)
+            similarity_errors = self._check_template_similarity(
+                template_old, template_new
+            )
             errors.extend(similarity_errors)
 
         except Exception as e:
@@ -301,7 +315,9 @@ class ConfigValidator:
 
         return errors
 
-    def _validate_template_structure(self, data: Dict[str, Any], file_type: str) -> List[str]:
+    def _validate_template_structure(
+        self, data: Dict[str, Any], file_type: str
+    ) -> List[str]:
         """Validate template-specific structure requirements.
 
         Args:
@@ -320,16 +336,22 @@ class ConfigValidator:
 
         # Templates should have some reasonable complexity
         if len(data) < 2:
-            errors.append(f"{file_type} appears too simple (less than 2 top-level keys)")
+            errors.append(
+                f"{file_type} appears too simple (less than 2 top-level keys)"
+            )
 
         # Check for extremely large configurations
         total_paths = len(self._get_all_paths_simple(data))
         if total_paths > 10000:  # Arbitrary reasonable limit
-            errors.append(f"{file_type} is extremely large ({total_paths} paths). Consider simplification.")
+            errors.append(
+                f"{file_type} is extremely large ({total_paths} paths). Consider simplification."
+            )
 
         return errors
 
-    def _check_template_compatibility(self, golden_config: Dict[str, Any], template_old: Dict[str, Any]) -> List[str]:
+    def _check_template_compatibility(
+        self, golden_config: Dict[str, Any], template_old: Dict[str, Any]
+    ) -> List[str]:
         """Check basic compatibility between golden config and old template.
 
         Args:
@@ -347,11 +369,15 @@ class ConfigValidator:
         # Check if golden config has paths not in template
         extra_paths = golden_paths - template_paths
         if len(extra_paths) > len(golden_paths) * 0.5:  # More than 50% extra paths
-            errors.append(f"Golden config has many paths not in template ({len(extra_paths)} extra)")
+            errors.append(
+                f"Golden config has many paths not in template ({len(extra_paths)} extra)"
+            )
 
         return errors
 
-    def _check_template_similarity(self, template_old: Dict[str, Any], template_new: Dict[str, Any]) -> List[str]:
+    def _check_template_similarity(
+        self, template_old: Dict[str, Any], template_new: Dict[str, Any]
+    ) -> List[str]:
         """Check structural similarity between template versions.
 
         Args:
@@ -427,11 +453,15 @@ class ConfigValidator:
         # Check for potential sensitive data
         sensitive_paths = self._find_sensitive_paths(config)
         if sensitive_paths:
-            warnings.append(f"Potential sensitive data found in paths: {', '.join(sensitive_paths[:5])}")
+            warnings.append(
+                f"Potential sensitive data found in paths: {', '.join(sensitive_paths[:5])}"
+            )
 
         return warnings
 
-    def _find_sensitive_paths(self, config: Dict[str, Any], prefix: str = "") -> List[str]:
+    def _find_sensitive_paths(
+        self, config: Dict[str, Any], prefix: str = ""
+    ) -> List[str]:
         """Find paths that might contain sensitive data.
 
         Args:
@@ -441,7 +471,14 @@ class ConfigValidator:
         Returns:
             List of potentially sensitive paths.
         """
-        sensitive_keywords = ["password", "secret", "key", "token", "credential", "auth"]
+        sensitive_keywords = [
+            "password",
+            "secret",
+            "key",
+            "token",
+            "credential",
+            "auth",
+        ]
         sensitive_paths: List[str] = []
 
         for key, value in config.items():

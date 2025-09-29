@@ -3,13 +3,14 @@
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Set, Optional
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
 
 
 @dataclass
 class NetworkPattern:
     """Represents a network-critical configuration pattern."""
+
     pattern: str
     category: str
     priority: int  # Higher = more critical
@@ -43,7 +44,7 @@ class NetworkPreservationEngine:
             rules_file_path = str(current_dir / "network_migration_rules.json")
 
         try:
-            with open(rules_file_path, 'r', encoding='utf-8') as f:
+            with open(rules_file_path, encoding="utf-8") as f:
                 return json.load(f)
         except FileNotFoundError:
             # Fallback to basic rules if file not found
@@ -60,7 +61,7 @@ class NetworkPreservationEngine:
             "critical_annotations": [],
             "version_update_rules": {"target_version": "25.1.200"},
             "merge_strategies": {},
-            "validation_rules": {}
+            "validation_rules": {},
         }
 
     def _initialize_network_patterns(self) -> List[NetworkPattern]:
@@ -69,12 +70,14 @@ class NetworkPreservationEngine:
 
         # Load patterns from rules file
         for pattern_config in self._rules.get("network_critical_patterns", []):
-            patterns.append(NetworkPattern(
-                pattern=pattern_config["pattern"],
-                category=pattern_config["category"],
-                priority=pattern_config["priority"],
-                description=pattern_config["description"]
-            ))
+            patterns.append(
+                NetworkPattern(
+                    pattern=pattern_config["pattern"],
+                    category=pattern_config["category"],
+                    priority=pattern_config["priority"],
+                    description=pattern_config["description"],
+                )
+            )
 
         return patterns
 
@@ -96,10 +99,12 @@ class NetworkPreservationEngine:
 
         return network_paths
 
-    def preserve_network_config(self,
-                               golden_old: Dict[str, Any],
-                               template_new: Dict[str, Any],
-                               merged_result: Dict[str, Any]) -> Dict[str, Any]:
+    def preserve_network_config(
+        self,
+        golden_old: Dict[str, Any],
+        template_new: Dict[str, Any],
+        merged_result: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """Preserve network-critical configurations from golden_old into merged_result.
 
         Args:
@@ -159,10 +164,7 @@ class NetworkPreservationEngine:
             True if version should be updated.
         """
         # Update version in common labels but preserve the labels themselves
-        version_patterns = [
-            r".*version.*",
-            r".*\.tag$"
-        ]
+        version_patterns = [r".*version.*", r".*\.tag$"]
 
         for pattern in version_patterns:
             if re.search(pattern, path, re.IGNORECASE):
@@ -179,13 +181,19 @@ class NetworkPreservationEngine:
         Returns:
             Updated value with new version numbers.
         """
-        target_version = self._rules.get("version_update_rules", {}).get("target_version", "25.1.200")
+        target_version = self._rules.get("version_update_rules", {}).get(
+            "target_version", "25.1.200"
+        )
         old_version = "25.1.102"  # This could also be configurable in rules
 
         if isinstance(value, dict):
             updated = value.copy()
             for key, val in updated.items():
-                if "version" in key.lower() and isinstance(val, str) and old_version in val:
+                if (
+                    "version" in key.lower()
+                    and isinstance(val, str)
+                    and old_version in val
+                ):
                     updated[key] = val.replace(old_version, target_version)
             return updated
         elif isinstance(value, str) and old_version in value:
@@ -193,10 +201,12 @@ class NetworkPreservationEngine:
 
         return value
 
-    def _merge_network_annotations(self,
-                                 golden_old: Dict[str, Any],
-                                 template_new: Dict[str, Any],
-                                 result: Dict[str, Any]) -> None:
+    def _merge_network_annotations(
+        self,
+        golden_old: Dict[str, Any],
+        template_new: Dict[str, Any],
+        result: Dict[str, Any],
+    ) -> None:
         """Intelligently merge network annotations from old and new configurations.
 
         Args:
@@ -205,8 +215,9 @@ class NetworkPreservationEngine:
             result: Configuration to enhance.
         """
         # Find all annotation paths
-        annotation_paths = [path for path in self._get_all_config_paths(result)
-                          if "annotations" in path]
+        annotation_paths = [
+            path for path in self._get_all_config_paths(result) if "annotations" in path
+        ]
 
         for path in annotation_paths:
             old_annotations = self._get_nested_value(golden_old, path)
@@ -244,7 +255,9 @@ class NetworkPreservationEngine:
                 return True
         return False
 
-    def _get_all_config_paths(self, config: Dict[str, Any], prefix: str = "") -> List[str]:
+    def _get_all_config_paths(
+        self, config: Dict[str, Any], prefix: str = ""
+    ) -> List[str]:
         """Get all dot-notation paths in a configuration.
 
         Args:
@@ -285,10 +298,10 @@ class NetworkPreservationEngine:
             return data
 
         # Handle array indices in path
-        if '[' in path and ']' in path:
+        if "[" in path and "]" in path:
             return None  # Simplified for now - could implement array support
 
-        keys = path.split('.')
+        keys = path.split(".")
         current = data
 
         for key in keys:
@@ -311,10 +324,10 @@ class NetworkPreservationEngine:
             return
 
         # Handle array indices in path
-        if '[' in path and ']' in path:
+        if "[" in path and "]" in path:
             return  # Simplified for now - could implement array support
 
-        keys = path.split('.')
+        keys = path.split(".")
         current = data
 
         # Navigate to parent
@@ -326,7 +339,9 @@ class NetworkPreservationEngine:
         # Set the final value
         current[keys[-1]] = value
 
-    def get_network_critical_summary(self, config: Dict[str, Any]) -> Dict[str, List[str]]:
+    def get_network_critical_summary(
+        self, config: Dict[str, Any]
+    ) -> Dict[str, List[str]]:
         """Generate a summary of network-critical configurations found.
 
         Args:
@@ -348,7 +363,9 @@ class NetworkPreservationEngine:
 
         return summary
 
-    def _fix_array_annotations(self, golden_old: Dict[str, Any], result: Dict[str, Any]) -> None:
+    def _fix_array_annotations(
+        self, golden_old: Dict[str, Any], result: Dict[str, Any]
+    ) -> None:
         """Fix both array-style and dictionary-style annotations that need to be merged with new template structure.
 
         Args:
@@ -366,7 +383,9 @@ class NetworkPreservationEngine:
             if old_annotations is not None:
                 # Handle array-style annotations (convert to dict first)
                 if isinstance(old_annotations, list):
-                    old_annotations_dict = self._convert_array_annotations_to_dict(old_annotations)
+                    old_annotations_dict = self._convert_array_annotations_to_dict(
+                        old_annotations
+                    )
                 elif isinstance(old_annotations, dict):
                     old_annotations_dict = old_annotations
                 else:
@@ -376,13 +395,15 @@ class NetworkPreservationEngine:
                 maintain_array_format = False
                 if current_annotations and isinstance(current_annotations, list):
                     maintain_array_format = True
-                elif path.endswith('.annotations'):
+                elif path.endswith(".annotations"):
                     # Most component annotations are in array format
                     maintain_array_format = True
 
                 # Process current annotations
                 if current_annotations and isinstance(current_annotations, list):
-                    current_annotations_dict = self._convert_array_annotations_to_dict(current_annotations)
+                    current_annotations_dict = self._convert_array_annotations_to_dict(
+                        current_annotations
+                    )
                 elif current_annotations and isinstance(current_annotations, dict):
                     current_annotations_dict = current_annotations
                 else:
@@ -397,14 +418,18 @@ class NetworkPreservationEngine:
 
                 # Convert to appropriate format
                 if maintain_array_format:
-                    merged_annotations: Any = [{key: value} for key, value in merged_annotations_dict.items()]
+                    merged_annotations: Any = [
+                        {key: value} for key, value in merged_annotations_dict.items()
+                    ]
                 else:
                     merged_annotations = merged_annotations_dict
 
                 # Set the merged annotations (preserve even empty dicts from golden config)
                 self._set_nested_value(result, path, merged_annotations)
 
-    def _convert_array_annotations_to_dict(self, array_annotations: List[Any]) -> Dict[str, str]:
+    def _convert_array_annotations_to_dict(
+        self, array_annotations: List[Any]
+    ) -> Dict[str, str]:
         """Convert array-style annotations to dictionary format.
 
         Args:
@@ -420,14 +445,16 @@ class NetworkPreservationEngine:
                 # Already a dictionary, merge it
                 for key, value in annotation.items():
                     annotation_dict[key] = str(value)
-            elif isinstance(annotation, str) and ':' in annotation:
+            elif isinstance(annotation, str) and ":" in annotation:
                 # Split on first colon to handle values with colons
-                key, value = annotation.split(':', 1)
+                key, value = annotation.split(":", 1)
                 annotation_dict[key.strip()] = value.strip().strip('"')
 
         return annotation_dict
 
-    def _merge_annotation_arrays(self, current: List[Any], enhanced: Dict[str, str]) -> List[Dict[str, str]]:
+    def _merge_annotation_arrays(
+        self, current: List[Any], enhanced: Dict[str, str]
+    ) -> List[Dict[str, str]]:
         """Merge array-style annotations with enhanced annotations.
 
         Args:
@@ -446,7 +473,9 @@ class NetworkPreservationEngine:
         # Convert back to array format
         return [{key: value} for key, value in merged_dict.items()]
 
-    def _merge_annotation_dicts(self, current: Dict[str, str], enhanced: Dict[str, str]) -> Dict[str, str]:
+    def _merge_annotation_dicts(
+        self, current: Dict[str, str], enhanced: Dict[str, str]
+    ) -> Dict[str, str]:
         """Merge dictionary-style annotations.
 
         Args:

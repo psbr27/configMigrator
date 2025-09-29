@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Test script to run the enhanced migration."""
 
-import sys
-import os
 import json
-sys.path.insert(0, 'src')
+import sys
+
+sys.path.insert(0, "src")
 
 from conflict_logger import ConflictLogger
 from merge_engine import MergeEngine
 from validators import ConfigValidator
 from yaml_processor import YAMLProcessor
+
 
 class ConfigMigrator:
     """Main configuration migration tool."""
@@ -28,15 +29,15 @@ class ConfigMigrator:
         template_new_path: str,
         output_config_path: str,
         output_log_path: str,
-        migration_map_path = None,
+        migration_map_path=None,
         output_format: str = "json",
         dry_run: bool = False,
-        verbose: bool = False
+        verbose: bool = False,
     ) -> bool:
         """Perform configuration migration."""
         try:
             if verbose:
-                print(f"Loading configurations...")
+                print("Loading configurations...")
 
             # Load configurations
             golden_config = self.yaml_processor.load_yaml(golden_old_path)
@@ -44,12 +45,12 @@ class ConfigMigrator:
             template_new = self.yaml_processor.load_yaml(template_new_path)
 
             if verbose:
-                print(f"Performing migration...")
+                print("Performing migration...")
 
             # Load migration map if provided
             migration_map = None
             if migration_map_path:
-                with open(migration_map_path, 'r') as f:
+                with open(migration_map_path) as f:
                     migration_map = json.load(f)
 
             # Perform merge
@@ -58,7 +59,7 @@ class ConfigMigrator:
             )
 
             if verbose:
-                print(f"Migration completed. Writing output...")
+                print("Migration completed. Writing output...")
 
             # Write output configuration
             if not dry_run:
@@ -73,6 +74,7 @@ class ConfigMigrator:
             print(f"Migration failed: {e}")
             return False
 
+
 def main():
     migrator = ConfigMigrator()
 
@@ -82,7 +84,7 @@ def main():
         template_new_path="occndbtier_custom_values_25.1.200.yaml",
         output_config_path="network_safe_occndbtier_25.1.200_v2.yaml",
         output_log_path="network_safe_migration_log_v2.json",
-        verbose=True
+        verbose=True,
     )
 
     if success:
@@ -90,6 +92,7 @@ def main():
     else:
         print("Migration failed!")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

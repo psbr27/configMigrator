@@ -14,6 +14,7 @@ except ImportError:
 
 class ConflictResolution(Enum):
     """Types of conflict resolution actions."""
+
     OVERWRITE = "OVERWRITE"
     DELETED = "DELETED"
     ADDED = "ADDED"
@@ -38,7 +39,7 @@ class MergeEngine:
         golden_config: Dict[str, Any],
         template_old: Dict[str, Any],
         template_new: Dict[str, Any],
-        migration_map: Optional[Dict[str, str]] = None
+        migration_map: Optional[Dict[str, str]] = None,
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Perform complete configuration merge with conflict resolution.
 
@@ -59,7 +60,9 @@ class MergeEngine:
             custom_data = self.apply_migrations(custom_data, migration_map)
 
         # Step 3: Resolve conflicts and merge
-        final_config, conflict_log = self.resolve_conflicts(custom_data, template_new, template_old)
+        final_config, conflict_log = self.resolve_conflicts(
+            custom_data, template_new, template_old
+        )
 
         # Step 4: Apply network-aware preservation to maintain connectivity
         final_config = self.network_engine.preserve_network_config(
@@ -72,7 +75,9 @@ class MergeEngine:
 
         return final_config, conflict_log
 
-    def extract_custom_data(self, golden_config: Dict[str, Any], template_old: Dict[str, Any]) -> Dict[str, Any]:
+    def extract_custom_data(
+        self, golden_config: Dict[str, Any], template_old: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Extract custom configuration data by comparing golden config with old template.
 
         Args:
@@ -88,7 +93,7 @@ class MergeEngine:
         self,
         custom_data: Dict[str, Any],
         template_new: Dict[str, Any],
-        template_old: Dict[str, Any]
+        template_old: Dict[str, Any],
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Resolve conflicts between custom data and new template structure.
 
@@ -105,8 +110,12 @@ class MergeEngine:
         conflict_log: List[Dict[str, Any]] = []
 
         # Find structural changes for context
-        deleted_paths = self.diff_analyzer.find_deleted_paths(template_old, template_new)
-        structural_changes = self.diff_analyzer.find_structural_changes(template_old, template_new)
+        deleted_paths = self.diff_analyzer.find_deleted_paths(
+            template_old, template_new
+        )
+        structural_changes = self.diff_analyzer.find_structural_changes(
+            template_old, template_new
+        )
 
         # Process each custom data entry
         for path, custom_value in custom_data.items():
@@ -120,14 +129,19 @@ class MergeEngine:
                     target_value=None,
                     new_default_value=None,
                     reason=f"Key '{path}' was removed in new template version",
-                    manual_review=True
+                    manual_review=True,
                 )
                 conflict_log.append(log_entry)
                 continue
 
             log_entry = self._resolve_single_conflict(
-                path, custom_value, final_config, template_new, template_old,
-                deleted_paths, structural_changes
+                path,
+                custom_value,
+                final_config,
+                template_new,
+                template_old,
+                deleted_paths,
+                structural_changes,
             )
             if log_entry:
                 conflict_log.append(log_entry)
@@ -142,7 +156,7 @@ class MergeEngine:
         template_new: Dict[str, Any],
         template_old: Dict[str, Any],
         deleted_paths: List[str],
-        structural_changes: Dict[str, str]
+        structural_changes: Dict[str, str],
     ) -> Optional[Dict[str, Any]]:
         """Resolve a single configuration conflict.
 
@@ -163,13 +177,21 @@ class MergeEngine:
             # Check if we can safely apply the value despite structural changes
             try:
                 if self.diff_analyzer.path_exists(template_new, path):
-                    new_default = self.diff_analyzer.get_nested_value(template_new, path)
-                    old_default = self.diff_analyzer.get_nested_value(template_old, path) if self.diff_analyzer.path_exists(template_old, path) else None
+                    new_default = self.diff_analyzer.get_nested_value(
+                        template_new, path
+                    )
+                    old_default = (
+                        self.diff_analyzer.get_nested_value(template_old, path)
+                        if self.diff_analyzer.path_exists(template_old, path)
+                        else None
+                    )
 
                     # Check type compatibility
                     if type(custom_value) == type(new_default):
                         # Types match, we can apply the value
-                        self.diff_analyzer.set_nested_value(final_config, path, custom_value)
+                        self.diff_analyzer.set_nested_value(
+                            final_config, path, custom_value
+                        )
                         return self._create_log_entry(
                             path=path,
                             action_type=ConflictResolution.OVERWRITE,
@@ -177,7 +199,7 @@ class MergeEngine:
                             target_value=custom_value,
                             new_default_value=new_default,
                             reason=f"Custom value applied despite structural change: {structural_changes[path]}",
-                            manual_review=True
+                            manual_review=True,
                         )
                     else:
                         # Type mismatch, cannot apply safely - keep new template value
@@ -188,14 +210,18 @@ class MergeEngine:
                             target_value=new_default,
                             new_default_value=new_default,
                             reason=f"Cannot apply custom value due to type change: {structural_changes[path]}",
-                            manual_review=True
+                            manual_review=True,
                         )
             except (KeyError, TypeError):
                 pass
 
             # If we can't determine compatibility, don't apply the value
             try:
-                new_default = self.diff_analyzer.get_nested_value(template_new, path) if self.diff_analyzer.path_exists(template_new, path) else None
+                new_default = (
+                    self.diff_analyzer.get_nested_value(template_new, path)
+                    if self.diff_analyzer.path_exists(template_new, path)
+                    else None
+                )
             except (KeyError, TypeError):
                 new_default = None
 
@@ -206,7 +232,7 @@ class MergeEngine:
                 target_value=new_default,
                 new_default_value=new_default,
                 reason=f"Structural mismatch prevents applying custom value: {structural_changes[path]}",
-                manual_review=True
+                manual_review=True,
             )
 
         # Case 2: Simple overwrite (path exists in new template)
@@ -224,7 +250,7 @@ class MergeEngine:
                         target_value=custom_value,
                         new_default_value=new_default,
                         reason="Custom value preserved from old configuration",
-                        manual_review=False
+                        manual_review=False,
                     )
             except (KeyError, TypeError) as e:
                 return self._create_log_entry(
@@ -234,7 +260,7 @@ class MergeEngine:
                     target_value=None,
                     new_default_value=None,
                     reason=f"Failed to apply custom value: {e}",
-                    manual_review=True
+                    manual_review=True,
                 )
 
         # Case 3: Path doesn't exist in new template (not in deleted_paths)
@@ -246,12 +272,14 @@ class MergeEngine:
                 target_value=None,
                 new_default_value=None,
                 reason=f"Custom path '{path}' does not exist in new template",
-                manual_review=True
+                manual_review=True,
             )
 
         return None
 
-    def apply_migrations(self, custom_data: Dict[str, Any], migration_map: Dict[str, str]) -> Dict[str, Any]:
+    def apply_migrations(
+        self, custom_data: Dict[str, Any], migration_map: Dict[str, str]
+    ) -> Dict[str, Any]:
         """Apply path migrations to custom data.
 
         Args:
@@ -281,7 +309,7 @@ class MergeEngine:
         target_value: Any,
         new_default_value: Any,
         reason: str,
-        manual_review: bool = False
+        manual_review: bool = False,
     ) -> Dict[str, Any]:
         """Create a standardized conflict log entry.
 
@@ -304,7 +332,7 @@ class MergeEngine:
             "target_value": target_value,
             "new_default_value": new_default_value,
             "reason": reason,
-            "manual_review": manual_review
+            "manual_review": manual_review,
         }
 
     def validate_migration_map(self, migration_map: Dict[str, str]) -> List[str]:
@@ -327,7 +355,9 @@ class MergeEngine:
             while current_path in migration_map:
                 next_path = migration_map[current_path]
                 if next_path in path_chain:
-                    errors.append(f"Circular migration detected: {' -> '.join(path_chain)} -> {next_path}")
+                    errors.append(
+                        f"Circular migration detected: {' -> '.join(path_chain)} -> {next_path}"
+                    )
                     break
                 if next_path in visited:
                     break
@@ -342,12 +372,16 @@ class MergeEngine:
             if not path or not isinstance(path, str):
                 errors.append(f"Invalid path format: {path}")
                 continue
-            if path.startswith('.') or path.endswith('.') or '..' in path:
-                errors.append(f"Invalid path format: '{path}' (cannot start/end with '.' or contain '..')")
+            if path.startswith(".") or path.endswith(".") or ".." in path:
+                errors.append(
+                    f"Invalid path format: '{path}' (cannot start/end with '.' or contain '..')"
+                )
 
         return errors
 
-    def get_merge_statistics(self, conflict_log: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def get_merge_statistics(
+        self, conflict_log: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Generate statistics about the merge operation.
 
         Args:
@@ -361,7 +395,7 @@ class MergeEngine:
                 "total_conflicts": 0,
                 "by_action_type": {},
                 "manual_review_required": 0,
-                "successful_overwrites": 0
+                "successful_overwrites": 0,
             }
 
         by_action_type: Dict[str, int] = {}
@@ -375,18 +409,21 @@ class MergeEngine:
             if entry.get("manual_review", False):
                 manual_review_count += 1
 
-            if action_type == ConflictResolution.OVERWRITE.value and not entry.get("manual_review", False):
+            if action_type == ConflictResolution.OVERWRITE.value and not entry.get(
+                "manual_review", False
+            ):
                 successful_overwrites += 1
 
         return {
             "total_conflicts": len(conflict_log),
             "by_action_type": by_action_type,
             "manual_review_required": manual_review_count,
-            "successful_overwrites": successful_overwrites
+            "successful_overwrites": successful_overwrites,
         }
 
-    def _add_network_preservation_logs(self, conflict_log: List[Dict[str, Any]],
-                                     network_summary: Dict[str, List[str]]) -> None:
+    def _add_network_preservation_logs(
+        self, conflict_log: List[Dict[str, Any]], network_summary: Dict[str, List[str]]
+    ) -> None:
         """Add network preservation information to conflict log.
 
         Args:
@@ -404,6 +441,6 @@ class MergeEngine:
                 target_value=f"Network categories: {', '.join(network_summary.keys())}",
                 new_default_value=None,
                 reason="Automatically preserved network-critical labels and annotations to maintain connectivity",
-                manual_review=False
+                manual_review=False,
             )
             conflict_log.append(network_log_entry)

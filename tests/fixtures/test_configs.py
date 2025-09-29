@@ -4,15 +4,8 @@ from typing import Any, Dict
 
 # Simple test configurations
 SIMPLE_OLD_TEMPLATE: Dict[str, Any] = {
-    "service": {
-        "name": "default-service",
-        "port": 8080,
-        "timeout": 30
-    },
-    "database": {
-        "host": "localhost",
-        "port": 5432
-    }
+    "service": {"name": "default-service", "port": 8080, "timeout": 30},
+    "database": {"host": "localhost", "port": 5432},
 }
 
 SIMPLE_NEW_TEMPLATE: Dict[str, Any] = {
@@ -20,25 +13,14 @@ SIMPLE_NEW_TEMPLATE: Dict[str, Any] = {
         "name": "default-service",
         "port": 9000,
         "timeout": 45,
-        "new_setting": "default"
+        "new_setting": "default",
     },
-    "database": {
-        "host": "localhost",
-        "port": 5432,
-        "ssl": True
-    }
+    "database": {"host": "localhost", "port": 5432, "ssl": True},
 }
 
 SIMPLE_GOLDEN_CONFIG: Dict[str, Any] = {
-    "service": {
-        "name": "my-custom-service",
-        "port": 8080,
-        "timeout": 120
-    },
-    "database": {
-        "host": "custom-db-host",
-        "port": 5432
-    }
+    "service": {"name": "my-custom-service", "port": 8080, "timeout": 120},
+    "database": {"host": "custom-db-host", "port": 5432},
 }
 
 # Complex nested configurations
@@ -52,41 +34,29 @@ COMPLEX_OLD_TEMPLATE: Dict[str, Any] = {
             "ssl": {
                 "enabled": False,
                 "cert_path": "/etc/ssl/cert.pem",
-                "key_path": "/etc/ssl/key.pem"
-            }
+                "key_path": "/etc/ssl/key.pem",
+            },
         },
         "database": {
             "primary": {
                 "host": "localhost",
                 "port": 5432,
                 "name": "app_db",
-                "ssl_mode": "disable"
+                "ssl_mode": "disable",
             },
             "replica": {
                 "host": "localhost",
                 "port": 5433,
                 "name": "app_db",
-                "ssl_mode": "disable"
-            }
+                "ssl_mode": "disable",
+            },
         },
-        "logging": {
-            "level": "info",
-            "format": "json",
-            "outputs": ["stdout", "file"]
-        }
+        "logging": {"level": "info", "format": "json", "outputs": ["stdout", "file"]},
     },
     "features": {
-        "auth": {
-            "enabled": True,
-            "provider": "local",
-            "session_timeout": 3600
-        },
-        "caching": {
-            "enabled": True,
-            "type": "redis",
-            "ttl": 300
-        }
-    }
+        "auth": {"enabled": True, "provider": "local", "session_timeout": 3600},
+        "caching": {"enabled": True, "type": "redis", "ttl": 300},
+    },
 }
 
 COMPLEX_NEW_TEMPLATE: Dict[str, Any] = {
@@ -100,12 +70,12 @@ COMPLEX_NEW_TEMPLATE: Dict[str, Any] = {
                 "enabled": False,
                 "cert_path": "/etc/ssl/cert.pem",
                 "key_path": "/etc/ssl/key.pem",
-                "protocols": ["TLSv1.2", "TLSv1.3"]  # New field
+                "protocols": ["TLSv1.2", "TLSv1.3"],  # New field
             },
             "cors": {  # New section
                 "enabled": False,
-                "origins": ["*"]
-            }
+                "origins": ["*"],
+            },
         },
         "database": {
             "primary": {
@@ -113,10 +83,10 @@ COMPLEX_NEW_TEMPLATE: Dict[str, Any] = {
                 "port": 5432,
                 "name": "app_db",
                 "ssl_mode": "require",  # Changed default
-                "connection_pool": {    # New nested section
+                "connection_pool": {  # New nested section
                     "min_size": 5,
-                    "max_size": 20
-                }
+                    "max_size": 20,
+                },
             },
             # replica section removed
         },
@@ -124,47 +94,38 @@ COMPLEX_NEW_TEMPLATE: Dict[str, Any] = {
             "level": "info",
             "format": "structured",  # Changed from "json"
             "outputs": ["stdout", "file"],
-            "structured_format": {   # New nested section
+            "structured_format": {  # New nested section
                 "timestamp_format": "iso8601",
-                "include_caller": True
-            }
+                "include_caller": True,
+            },
         },
         "observability": {  # New top-level section
-            "metrics": {
-                "enabled": True,
-                "port": 9090
-            },
-            "tracing": {
-                "enabled": False,
-                "endpoint": "http://jaeger:14268"
-            }
-        }
+            "metrics": {"enabled": True, "port": 9090},
+            "tracing": {"enabled": False, "endpoint": "http://jaeger:14268"},
+        },
     },
     "features": {
         "auth": {
             "enabled": True,
             "providers": [  # Changed from single "provider" to list "providers"
-                {
-                    "name": "local",
-                    "config": {}
-                }
+                {"name": "local", "config": {}}
             ],
-            "session_timeout": 7200  # Changed default
+            "session_timeout": 7200,  # Changed default
         },
         "caching": {
             "enabled": True,
             "type": "redis",
             "ttl": 600,  # Changed default
-            "redis": {   # New nested config
+            "redis": {  # New nested config
                 "host": "localhost",
-                "port": 6379
-            }
+                "port": 6379,
+            },
         },
         "rate_limiting": {  # New feature
             "enabled": False,
-            "requests_per_minute": 1000
-        }
-    }
+            "requests_per_minute": 1000,
+        },
+    },
 }
 
 COMPLEX_GOLDEN_CONFIG: Dict[str, Any] = {
@@ -177,65 +138,65 @@ COMPLEX_GOLDEN_CONFIG: Dict[str, Any] = {
             "ssl": {
                 "enabled": True,  # Custom
                 "cert_path": "/prod/ssl/cert.pem",  # Custom
-                "key_path": "/prod/ssl/key.pem"     # Custom
-            }
+                "key_path": "/prod/ssl/key.pem",  # Custom
+            },
         },
         "database": {
             "primary": {
                 "host": "prod-db-primary.internal",  # Custom
                 "port": 5432,
                 "name": "production_db",  # Custom
-                "ssl_mode": "require"     # Custom
+                "ssl_mode": "require",  # Custom
             },
             "replica": {
                 "host": "prod-db-replica.internal",  # Custom
                 "port": 5432,
                 "name": "production_db",  # Custom
-                "ssl_mode": "require"     # Custom
-            }
+                "ssl_mode": "require",  # Custom
+            },
         },
         "logging": {
             "level": "warn",  # Custom
             "format": "json",
-            "outputs": ["stdout", "file", "syslog"]  # Custom
-        }
+            "outputs": ["stdout", "file", "syslog"],  # Custom
+        },
     },
     "features": {
         "auth": {
             "enabled": True,
-            "provider": "oauth2",     # Custom
-            "session_timeout": 1800  # Custom
+            "provider": "oauth2",  # Custom
+            "session_timeout": 1800,  # Custom
         },
         "caching": {
             "enabled": True,
             "type": "redis",
-            "ttl": 1800  # Custom
-        }
-    }
+            "ttl": 1800,  # Custom
+        },
+    },
 }
 
 # Migration map examples
 SIMPLE_MIGRATION_MAP: Dict[str, str] = {
     "old.setting": "new.setting",
-    "deprecated.config": "new.config.setting"
+    "deprecated.config": "new.config.setting",
 }
 
 COMPLEX_MIGRATION_MAP: Dict[str, str] = {
     "features.auth.provider": "features.auth.providers.0.name",
-    "application.database.replica": "application.database.secondary"
+    "application.database.replica": "application.database.secondary",
 }
 
 # Expected results for testing
 EXPECTED_SIMPLE_MERGE_RESULT: Dict[str, Any] = {
     "service": {
         "name": "my-custom-service",  # Custom preserved
-        "port": 8080,                # Custom preserved
-        "timeout": 120,              # Custom preserved
-        "new_setting": "default"     # New default added
+        "port": 8080,  # Custom preserved
+        "timeout": 120,  # Custom preserved
+        "new_setting": "default",  # New default added
     },
     "database": {
-        "host": "custom-db-host",    # Custom preserved
+        "host": "custom-db-host",  # Custom preserved
         "port": 5432,
-        "ssl": True                  # New default added
-    }
+        "ssl": True,  # New default added
+    },
 }
