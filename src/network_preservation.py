@@ -56,27 +56,27 @@ class NetworkPreservationEngine:
     def _get_default_rules(self) -> Dict[str, Any]:
         """Get default rules when no rules file is available."""
         return {
-            "network_critical_patterns": [],
-            "critical_annotation_paths": [],
-            "network_annotation_patterns": [],
-            "critical_annotations": [],
-            "version_update_rules": {"target_version": "25.1.200"},
-            "merge_strategies": {},
-            "validation_rules": {},
+            "target_version": "25.1.200",
+            "preserve_these_paths": [],
+            "preserve_these_annotations": [],
+            "preserve_these_patterns": [],
+            "update_version_in": [],
+            "merge_strategy": "smart_merge",
+            "required_labels": [],
         }
 
     def _initialize_network_patterns(self) -> List[NetworkPattern]:
         """Define network-critical patterns to preserve from loaded rules."""
         patterns = []
 
-        # Load patterns from rules file
-        for pattern_config in self._rules.get("network_critical_patterns", []):
+        # Load patterns from simplified rules file
+        for pattern in self._rules.get("preserve_these_patterns", []):
             patterns.append(
                 NetworkPattern(
-                    pattern=pattern_config["pattern"],
-                    category=pattern_config["category"],
-                    priority=pattern_config["priority"],
-                    description=pattern_config["description"],
+                    pattern=pattern,
+                    category="network_critical",
+                    priority=50,  # Default priority
+                    description=f"Network critical pattern: {pattern}",
                 )
             )
 
@@ -149,6 +149,12 @@ class NetworkPreservationEngine:
         Returns:
             True if the path is network-critical.
         """
+        # Check against explicit paths to preserve
+        preserve_paths = self._rules.get("preserve_these_paths", [])
+        if path in preserve_paths:
+            return True
+
+        # Check against patterns
         for pattern in self._network_patterns:
             if re.search(pattern.pattern, path, re.IGNORECASE):
                 return True
@@ -164,14 +170,27 @@ class NetworkPreservationEngine:
         Returns:
             True if version should be updated.
         """
-        # Update version in common labels but preserve the labels themselves
-        version_patterns = [r".*version.*", r".*\.tag$"]
-
-        for pattern in version_patterns:
-            if re.search(pattern, path, re.IGNORECASE):
+        # Check against explicit paths that should have version updated
+        update_paths = self._rules.get("update_version_in", [])
+        for update_path in update_paths:
+            if self._path_matches_pattern(path, update_path):
                 return True
 
         return False
+
+    def _path_matches_pattern(self, path: str, pattern: str) -> bool:
+        """Check if a path matches a pattern (supports wildcards).
+
+        Args:
+            path: Configuration path to check.
+            pattern: Pattern to match against (supports * wildcards).
+
+        Returns:
+            True if path matches pattern.
+        """
+        # Convert pattern to regex
+        regex_pattern = pattern.replace("*", ".*")
+        return re.search(regex_pattern, path, re.IGNORECASE) is not None
 
     def _update_version_fields(self, value: Any) -> Any:
         """Update version fields while preserving structure.
@@ -182,9 +201,7 @@ class NetworkPreservationEngine:
         Returns:
             Updated value with new version numbers.
         """
-        target_version = self._rules.get("version_update_rules", {}).get(
-            "target_version", "25.1.200"
-        )
+        target_version = self._rules.get("target_version", "25.1.200")
         old_version = "25.1.102"  # This could also be configurable in rules
 
         if isinstance(value, dict):
@@ -215,29 +232,51 @@ class NetworkPreservationEngine:
             template_new: New template configuration.
             result: Configuration to enhance.
         """
-        # Find all annotation paths
+        # Find all annotation-related paths (expanded to catch all annotation types)
         annotation_paths = [
-            path for path in self._get_all_config_paths(result) if "annotations" in path
+            path
+            for path in self._get_all_config_paths(result)
+            if any(
+                ann_type in path.lower()
+                for ann_type in ["annotations", "egressannotations", "podannotations"]
+            )
         ]
+
+        # Also include paths explicitly listed in preserve_these_paths that contain annotations
+        preserve_paths = self._rules.get("preserve_these_paths", [])
+        all_config_paths = self._get_all_config_paths(result)
+
+        for preserve_path in preserve_paths:
+            if any(
+                ann_type in preserve_path.lower()
+                for ann_type in ["annotations", "egressannotations", "podannotations"]
+            ):
+                # Handle wildcard paths
+                if "*" in preserve_path:
+                    pattern_regex = preserve_path.replace("*", ".*")
+                    import re
+
+                    for config_path in all_config_paths:
+                        if (
+                            re.match(pattern_regex, config_path)
+                            and config_path not in annotation_paths
+                        ):
+                            annotation_paths.append(config_path)
+                elif preserve_path not in annotation_paths:
+                    annotation_paths.append(preserve_path)
 
         for path in annotation_paths:
             old_annotations = self._get_nested_value(golden_old, path)
             new_annotations = self._get_nested_value(template_new, path)
             current_annotations = self._get_nested_value(result, path)
 
-            # If golden config has this path, preserve it but filter out excluded annotations
-            if old_annotations is not None:
-                filtered_annotations = self._filter_excluded_annotations(
-                    old_annotations
+            # Merge annotations from both golden config and new template
+            if old_annotations is not None or new_annotations is not None:
+                merged_annotations = self._merge_annotation_sources(
+                    old_annotations, new_annotations, path
                 )
-                self._set_nested_value(result, path, filtered_annotations)
-            elif new_annotations is not None:
-                # Only use new template value if golden config doesn't have this path at all
-                # Also filter excluded annotations from new template
-                filtered_new_annotations = self._filter_excluded_annotations(
-                    new_annotations
-                )
-                self._set_nested_value(result, path, filtered_new_annotations)
+                if merged_annotations is not None:
+                    self._set_nested_value(result, path, merged_annotations)
 
     def _filter_excluded_annotations(self, annotations: Any) -> Any:
         """Filter out excluded annotations from annotation data.
@@ -251,14 +290,15 @@ class NetworkPreservationEngine:
         if annotations is None:
             return None
 
-        excluded_annotations = self._rules.get("excluded_annotations", [])
+        # Get excluded annotations from rules
+        excluded_annotations = self._rules.get("exclude_these_annotations", [])
 
         if isinstance(annotations, dict):
             # Dictionary format - filter out excluded keys
             return {
                 key: value
                 for key, value in annotations.items()
-                if key not in excluded_annotations
+                if not self._is_annotation_excluded(key)
             }
         elif isinstance(annotations, list):
             # Array format - filter out excluded annotations
@@ -269,18 +309,21 @@ class NetworkPreservationEngine:
                     filtered_item = {
                         key: value
                         for key, value in item.items()
-                        if key not in excluded_annotations
+                        if not self._is_annotation_excluded(key)
                     }
                     if filtered_item:  # Only add non-empty dict items
                         filtered_list.append(filtered_item)
                 elif isinstance(item, str) and ":" in item:
                     # Handle "key: value" string format
                     key = item.split(":", 1)[0].strip()
-                    if key not in excluded_annotations:
+                    if not self._is_annotation_excluded(key):
                         filtered_list.append(item)
                 else:
                     # Keep other formats as-is
                     filtered_list.append(item)
+
+            # If the original was array format but became empty, maintain array format
+            # unless it was obviously meant to be a dictionary
             return filtered_list
         else:
             # Other formats - return as-is
@@ -295,23 +338,74 @@ class NetworkPreservationEngine:
         Returns:
             True if the annotation is network-critical.
         """
-        # Get patterns and critical annotations from rules
-        network_annotation_patterns = self._rules.get("network_annotation_patterns", [])
-        critical_annotations = self._rules.get("critical_annotations", [])
-        excluded_annotations = self._rules.get("excluded_annotations", [])
+        # Get patterns and critical annotations from simplified rules
+        preserve_patterns = self._rules.get("preserve_these_patterns", [])
+        preserve_annotations = self._rules.get("preserve_these_annotations", [])
 
-        # Check if explicitly excluded first
-        if annotation_key in excluded_annotations:
-            return False
-
-        # Check exact matches
-        if annotation_key in critical_annotations:
+        # Check if annotation is in preserve list
+        if annotation_key in preserve_annotations:
             return True
 
-        # Then check patterns
-        for pattern in network_annotation_patterns:
-            if re.match(pattern, annotation_key):
+        # Check if annotation matches preserve patterns
+        for pattern in preserve_patterns:
+            if re.search(pattern, annotation_key, re.IGNORECASE):
                 return True
+
+        return False
+
+    def _is_annotation_excluded(self, annotation_key: str) -> bool:
+        """Check if an annotation key should be excluded from merging.
+
+        Args:
+            annotation_key: Annotation key to check.
+
+        Returns:
+            True if the annotation should be excluded.
+        """
+        excluded_annotations = self._rules.get("exclude_these_annotations", [])
+        return annotation_key in excluded_annotations
+
+    def _should_use_dict_format_for_path(self, path: str) -> bool:
+        """Determine if a path should use dictionary format for annotations.
+
+        Args:
+            path: Configuration path.
+
+        Returns:
+            True if path should use dictionary format by default.
+        """
+        # Most service annotations should be in dictionary format
+        dict_format_patterns = [
+            "service.annotations",
+            "externalService.annotations",
+            "connectivityService.annotations",
+            "externalconnectivityService.annotations",
+            "internalService.annotations",
+        ]
+
+        # Array format is typically used for pod/container annotations
+        array_format_patterns = [
+            "mgm.annotations",
+            "ndb.annotations",
+            "api.annotations",
+            "api.ndbapp.annotations",
+            "test.annotations",
+        ]
+
+        # Check if it should be dictionary format
+        for pattern in dict_format_patterns:
+            if pattern in path:
+                return True
+
+        # Check if it should explicitly be array format
+        for pattern in array_format_patterns:
+            if pattern in path:
+                return False
+
+        # Default to dictionary format for service-related paths
+        if "service" in path.lower() and "annotations" in path:
+            return True
+
         return False
 
     def _get_all_config_paths(
@@ -433,17 +527,22 @@ class NetworkPreservationEngine:
         Returns:
             Configuration with excluded annotations removed.
         """
-        if not self._rules.get("excluded_annotations"):
-            return config  # No exclusions to apply
+        # Check if there are any annotations to exclude
+        excluded_annotations = self._rules.get("exclude_these_annotations", [])
+        if not excluded_annotations:
+            return config
 
         # Create a copy to avoid modifying the original
         filtered_config = copy.deepcopy(config)
 
-        # Find all annotation paths in the configuration
+        # Find all annotation-related paths in the configuration
         annotation_paths = [
             path
             for path in self._get_all_config_paths(filtered_config)
-            if "annotations" in path.lower()
+            if any(
+                ann_type in path.lower()
+                for ann_type in ["annotations", "egressannotations", "podannotations"]
+            )
         ]
 
         # Filter excluded annotations from each annotation path
@@ -468,8 +567,29 @@ class NetworkPreservationEngine:
             template_new: New template configuration with annotations.
             result: Configuration to enhance.
         """
-        # Get critical annotation paths from rules
-        critical_annotation_paths = self._rules.get("critical_annotation_paths", [])
+        # Get critical annotation paths from rules - use preserve_these_paths for annotation-related paths
+        preserve_paths = self._rules.get("preserve_these_paths", [])
+        all_config_paths = self._get_all_config_paths(result)
+        critical_annotation_paths = []
+
+        for preserve_path in preserve_paths:
+            if any(
+                ann_type in preserve_path.lower()
+                for ann_type in ["annotations", "egressannotations", "podannotations"]
+            ):
+                # Handle wildcard paths
+                if "*" in preserve_path:
+                    pattern_regex = preserve_path.replace("*", ".*")
+                    import re
+
+                    for config_path in all_config_paths:
+                        if (
+                            re.match(pattern_regex, config_path)
+                            and config_path not in critical_annotation_paths
+                        ):
+                            critical_annotation_paths.append(config_path)
+                elif preserve_path not in critical_annotation_paths:
+                    critical_annotation_paths.append(preserve_path)
 
         for path in critical_annotation_paths:
             old_annotations = self._get_nested_value(golden_old, path)
@@ -514,32 +634,90 @@ class NetworkPreservationEngine:
                     # Most component annotations are in array format
                     maintain_array_format = True
 
+                # Override with path-based format detection for service annotations
+                if self._should_use_dict_format_for_path(path):
+                    maintain_array_format = False
+
+                # Check if golden config explicitly disabled annotations (empty dict/array)
+                golden_annotations_explicitly_disabled = (
+                    old_annotations is not None
+                    and (
+                        (
+                            isinstance(old_annotations, dict)
+                            and len(old_annotations) == 0
+                        )
+                        or (
+                            isinstance(old_annotations, list)
+                            and len(old_annotations) == 0
+                        )
+                    )
+                )
+
                 # Merge annotations: golden config + new template annotations
                 merged_annotations_dict = {}
-                excluded_annotations = self._rules.get("excluded_annotations", [])
+                excluded_annotations = self._rules.get("exclude_these_annotations", [])
 
                 # Add old annotations (golden config) - these take precedence
                 for key, value in old_annotations_dict.items():
-                    if key not in excluded_annotations:
+                    if not self._is_annotation_excluded(key):
                         merged_annotations_dict[key] = value
 
-                # Add new template annotations that don't exist in golden config and aren't excluded
-                for key, value in new_template_annotations_dict.items():
-                    if (
-                        key not in merged_annotations_dict
-                        and key not in excluded_annotations
-                    ):
-                        merged_annotations_dict[key] = value
+                # Only add new template annotations if golden config didn't explicitly disable them
+                if not golden_annotations_explicitly_disabled:
+                    # Add new template annotations that don't exist in golden config and aren't excluded
+                    for key, value in new_template_annotations_dict.items():
+                        if (
+                            key not in merged_annotations_dict
+                            and not self._is_annotation_excluded(key)
+                        ):
+                            merged_annotations_dict[key] = value
 
                 # Convert to appropriate format
                 if maintain_array_format:
-                    merged_annotations: Any = [
-                        {key: value} for key, value in merged_annotations_dict.items()
-                    ]
+                    if merged_annotations_dict:
+                        merged_annotations: Any = [
+                            {key: value}
+                            for key, value in merged_annotations_dict.items()
+                        ]
+                    else:
+                        # For empty annotations, preserve the original golden config format if it was explicitly disabled
+                        if (
+                            golden_annotations_explicitly_disabled
+                            and old_annotations is not None
+                        ):
+                            # Preserve the exact format from golden config when it was explicitly disabled
+                            merged_annotations = old_annotations
+                        else:
+                            # For empty array annotations, check if we should maintain array format
+                            original_had_content = (
+                                old_annotations
+                                and isinstance(old_annotations, list)
+                                and old_annotations
+                            ) or (
+                                new_template_annotations
+                                and isinstance(new_template_annotations, list)
+                                and new_template_annotations
+                            )
+                            if original_had_content:
+                                merged_annotations = []
+                            else:
+                                # Default to dictionary format for empty annotations
+                                merged_annotations = {}
                 else:
-                    merged_annotations = merged_annotations_dict
+                    if merged_annotations_dict:
+                        merged_annotations = merged_annotations_dict
+                    else:
+                        # For empty annotations, preserve the original golden config format if it was explicitly disabled
+                        if (
+                            golden_annotations_explicitly_disabled
+                            and old_annotations is not None
+                        ):
+                            # Preserve the exact format from golden config when it was explicitly disabled
+                            merged_annotations = old_annotations
+                        else:
+                            merged_annotations = {}
 
-                # Set the merged annotations (preserve even empty dicts from golden config)
+                # Set the merged annotations (preserve format consistency)
                 self._set_nested_value(result, path, merged_annotations)
 
     def _convert_array_annotations_to_dict(
@@ -555,6 +733,9 @@ class NetworkPreservationEngine:
         """
         annotation_dict = {}
 
+        if not isinstance(array_annotations, list):
+            return annotation_dict
+
         for annotation in array_annotations:
             if isinstance(annotation, dict):
                 # Already a dictionary, merge it
@@ -564,6 +745,9 @@ class NetworkPreservationEngine:
                 # Split on first colon to handle values with colons
                 key, value = annotation.split(":", 1)
                 annotation_dict[key.strip()] = value.strip().strip('"')
+            elif isinstance(annotation, str):
+                # Handle strings without colons (edge case)
+                annotation_dict[annotation.strip()] = ""
 
         return annotation_dict
 
@@ -602,3 +786,118 @@ class NetworkPreservationEngine:
         """
         # Enhanced takes precedence, but preserve new template additions
         return {**enhanced, **current}
+
+    def _merge_annotation_sources(
+        self, old_annotations: Any, new_annotations: Any, path: str
+    ) -> Any:
+        """Merge annotations from golden config and new template.
+
+        Args:
+            old_annotations: Annotations from golden config (may be None).
+            new_annotations: Annotations from new template (may be None).
+            path: Configuration path for context.
+
+        Returns:
+            Merged annotations in appropriate format.
+        """
+        # Handle case where only one source has annotations
+        if old_annotations is None and new_annotations is not None:
+            return self._filter_excluded_annotations(new_annotations)
+        elif old_annotations is not None and new_annotations is None:
+            return self._filter_excluded_annotations(old_annotations)
+        elif old_annotations is None and new_annotations is None:
+            return None
+
+        # Both sources have annotations - merge them
+        # Convert both to dictionaries for merging
+        old_dict = {}
+        new_dict = {}
+
+        if isinstance(old_annotations, list):
+            old_dict = self._convert_array_annotations_to_dict(old_annotations)
+        elif isinstance(old_annotations, dict):
+            old_dict = old_annotations
+
+        if isinstance(new_annotations, list):
+            new_dict = self._convert_array_annotations_to_dict(new_annotations)
+        elif isinstance(new_annotations, dict):
+            new_dict = new_annotations
+
+        # Check if golden config explicitly disabled annotations (empty dict/array)
+        golden_annotations_explicitly_disabled = old_annotations is not None and (
+            (isinstance(old_annotations, dict) and len(old_annotations) == 0)
+            or (isinstance(old_annotations, list) and len(old_annotations) == 0)
+        )
+
+        # Merge: golden config takes precedence, but add new template annotations
+        merged_dict = {}
+        excluded_annotations = self._rules.get("exclude_these_annotations", [])
+
+        # Only add new template annotations if golden config didn't explicitly disable them
+        if not golden_annotations_explicitly_disabled:
+            # Add new template annotations first
+            for key, value in new_dict.items():
+                if not self._is_annotation_excluded(key):
+                    merged_dict[key] = value
+
+        # Add golden config annotations (these override template)
+        for key, value in old_dict.items():
+            if not self._is_annotation_excluded(key):
+                merged_dict[key] = value
+
+        # Determine format based on both old and new annotations and path patterns
+        # Prefer the format from golden config if it exists, otherwise use new template format
+        use_array_format = False
+        if old_annotations is not None and isinstance(old_annotations, list):
+            use_array_format = True
+        elif old_annotations is None and isinstance(new_annotations, list):
+            use_array_format = True
+
+        # Override with path-based format detection for empty results
+        if not merged_dict and self._should_use_dict_format_for_path(path):
+            use_array_format = False
+
+        # Convert back to appropriate format
+        if use_array_format:
+            # Maintain array format - convert each key-value pair to a single-key dict
+            if merged_dict:
+                return [{key: value} for key, value in merged_dict.items()]
+            else:
+                # For empty annotations, preserve the original golden config format if it was explicitly disabled
+                if (
+                    golden_annotations_explicitly_disabled
+                    and old_annotations is not None
+                ):
+                    # Preserve the exact format from golden config when it was explicitly disabled
+                    return old_annotations
+                else:
+                    # For empty arrays, maintain array format only if both sources were originally arrays
+                    # or if we have explicit content that was filtered out
+                    original_had_content = (
+                        old_annotations
+                        and isinstance(old_annotations, list)
+                        and old_annotations
+                    ) or (
+                        new_annotations
+                        and isinstance(new_annotations, list)
+                        and new_annotations
+                    )
+                    if original_had_content:
+                        return []
+                    else:
+                        # Default to dictionary format for empty annotations
+                        return {}
+        else:
+            if merged_dict:
+                return merged_dict
+            else:
+                # For empty annotations, preserve the original golden config format if it was explicitly disabled
+                if (
+                    golden_annotations_explicitly_disabled
+                    and old_annotations is not None
+                ):
+                    # Preserve the exact format from golden config when it was explicitly disabled
+                    return old_annotations
+                else:
+                    # Maintain dictionary format - return empty dict when no annotations
+                    return {}

@@ -385,47 +385,47 @@ def create_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s --golden-old config-v1.yaml --template-old template-v1.yaml \\
-           --template-new template-v2.yaml --output-config config-v2.yaml \\
-           --output-log migration-log.json
+  %(prog)s --golden config-v1.yaml --template template-v1.yaml \\
+           --new-template template-v2.yaml --output config-v2.yaml \\
+           --log migration-log.json
 
-  %(prog)s --golden-old config-v1.yaml --template-old template-v1.yaml \\
-           --template-new template-v2.yaml --output-config config-v2.yaml \\
-           --output-log migration-log.csv --format csv --dry-run --verbose
+  %(prog)s --golden config-v1.yaml --template template-v1.yaml \\
+           --new-template template-v2.yaml --output config-v2.yaml \\
+           --log migration-log.csv --format csv --dry-run --verbose
 
-  %(prog)s --golden-old config-v1.yaml --template-old template-v1.yaml \\
-           --template-new template-v2.yaml --output-config config-v2.yaml \\
-           --output-log migration-log.json --enable-dynamic-discovery \\
-           --dynamic-discovery-report discovery-report.json --verbose
+  %(prog)s --golden config-v1.yaml --template template-v1.yaml \\
+           --new-template template-v2.yaml --output config-v2.yaml \\
+           --log migration-log.json --dynamic \\
+           --discovery-report discovery-report.json --verbose
         """,
     )
 
     # Required arguments
     required = parser.add_argument_group("required arguments")
     required.add_argument(
-        "--golden-old", required=True, help="Path to V_OLD golden configuration file"
+        "--golden", required=True, help="Path to V_OLD golden configuration file"
     )
     required.add_argument(
-        "--template-old", required=True, help="Path to V_OLD template file"
+        "--template", required=True, help="Path to V_OLD template file"
     )
     required.add_argument(
-        "--template-new", required=True, help="Path to V_NEW template file"
+        "--new-template", required=True, help="Path to V_NEW template file"
     )
     required.add_argument(
-        "--output-config",
+        "--output",
         required=True,
         help="Path for output V_NEW golden configuration",
     )
     required.add_argument(
-        "--output-log", required=True, help="Path for migration conflict log"
+        "--log", required=True, help="Path for migration conflict log"
     )
 
     # Optional arguments
     parser.add_argument(
-        "--migration-map", help="Path to JSON file with old-path to new-path mappings"
+        "--map", help="Path to JSON file with old-path to new-path mappings"
     )
     parser.add_argument(
-        "--rules-file",
+        "--rules",
         help="Path to network migration rules JSON file (default: network_migration_rules.json)",
     )
     parser.add_argument(
@@ -441,13 +441,13 @@ Examples:
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument(
-        "--enable-dynamic-discovery",
+        "--dynamic",
         action="store_true",
         help="Enable dynamic structural migration discovery (experimental)",
     )
     parser.add_argument(
-        "--dynamic-discovery-report",
-        help="Path to export dynamic discovery report (optional, requires --enable-dynamic-discovery)",
+        "--discovery-report",
+        help="Path to export dynamic discovery report (optional, requires --dynamic)",
     )
     parser.add_argument("--version", action="version", version="ConfigMigrator 0.1.0")
 
@@ -460,21 +460,21 @@ def main() -> None:
     args = parser.parse_args()
 
     # Create migrator instance
-    migrator = ConfigMigrator(rules_file_path=args.rules_file)
+    migrator = ConfigMigrator(rules_file_path=args.rules)
 
     # Perform migration
     success = migrator.migrate(
-        golden_old_path=args.golden_old,
-        template_old_path=args.template_old,
-        template_new_path=args.template_new,
-        output_config_path=args.output_config,
-        output_log_path=args.output_log,
-        migration_map_path=args.migration_map,
+        golden_old_path=args.golden,
+        template_old_path=args.template,
+        template_new_path=args.new_template,
+        output_config_path=args.output,
+        output_log_path=args.log,
+        migration_map_path=args.map,
         output_format=args.format,
         dry_run=args.dry_run,
         verbose=args.verbose,
-        enable_dynamic_discovery=args.enable_dynamic_discovery,
-        dynamic_discovery_report_path=args.dynamic_discovery_report,
+        enable_dynamic_discovery=args.dynamic,
+        dynamic_discovery_report_path=args.discovery_report,
     )
 
     # Exit with appropriate code
