@@ -1,1 +1,1 @@
-"""Test package for ConfigMigrator."""
+"""Tests for config migrator."""
