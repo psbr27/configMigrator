@@ -1,5 +1,5 @@
 """
-Logging configuration for config migrator.
+Logging configuration for cvpilot.
 """
 
 import logging
@@ -18,7 +18,7 @@ def setup_logging(level: str = "INFO") -> logging.Logger:
         Configured logger instance
     """
     # Create logger
-    logger = logging.getLogger("config_migrator")
+    logger = logging.getLogger("cvpilot")
     logger.setLevel(getattr(logging, level.upper()))
 
     # Remove existing handlers to avoid duplicates
@@ -53,5 +53,5 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
         Logger instance
     """
     if name:
-        return logging.getLogger(f"config_migrator.{name}")
-    return logging.getLogger("config_migrator")
+        return logging.getLogger(f"cvpilot.{name}")
+    return logging.getLogger("cvpilot")

@@ -5,8 +5,8 @@ Integration tests for the complete config migration workflow.
 import os
 import tempfile
 
-from config_migrator.core.merger import ConfigMerger
-from config_migrator.core.parser import YAMLParser
+from cvpilot.core.merger import ConfigMerger
+from cvpilot.core.parser import YAMLParser
 
 
 class TestIntegration:
@@ -15,7 +15,7 @@ class TestIntegration:
     def test_complete_migration_workflow(self):
         """Test the complete migration workflow from flowchart."""
         # Create test data representing the actual files
-        etf_data = {
+        engprev_data = {
             "global": {
                 "repository": "docker_repo:5000/occne",
                 "sitename": "cndbtiersitename",
@@ -30,7 +30,7 @@ class TestIntegration:
             },
         }
 
-        newtf_data = {
+        engnew_data = {
             "global": {
                 "version": "25.1.200",
                 "serviceMode": {
@@ -46,7 +46,7 @@ class TestIntegration:
             },
         }
 
-        nstf_data = {
+        nsprev_data = {
             "global": {
                 "repository": "registry.mtce.vzwops.com/ws_core/5ee22af33858010001ac40e5/occne",
                 "sitename": "rcnltxekvzwcslf-y-or-x-004",
@@ -61,61 +61,91 @@ class TestIntegration:
         }
 
         # Step 1: Process the files (load YAML)
-        etf_file = self._create_temp_yaml(etf_data)
-        newtf_file = self._create_temp_yaml(newtf_data)
-        nstf_file = self._create_temp_yaml(nstf_data)
+        engprev_file = self._create_temp_yaml(engprev_data)
+        engnew_file = self._create_temp_yaml(engnew_data)
+        nsprev_file = self._create_temp_yaml(nsprev_data)
 
         try:
-            # Step 2: Validate syntax of both input files (Stage 1)
-            file_paths = [etf_file, nstf_file]
+            # Step 2: Validate syntax of all input files
+            file_paths = [nsprev_file, engprev_file, engnew_file]
             parser = YAMLParser()
             is_valid, error = parser.validate_all_files(file_paths)
             assert is_valid, f"Validation failed: {error}"
 
             # Load the files
-            etf_loaded = parser.load_yaml_file(etf_file)
-            nstf_loaded = parser.load_yaml_file(nstf_file)
+            engprev_loaded = parser.load_yaml_file(engprev_file)
+            engnew_loaded = parser.load_yaml_file(engnew_file)
+            nsprev_loaded = parser.load_yaml_file(nsprev_file)
 
-            # Step 3: Compare 1 & 2 files (NSTF vs ETF)
-            differences = ConfigMerger.compare_configs(etf_loaded, nstf_loaded)
-            assert len(differences) > 0, "Should find differences between NSTF and ETF"
-
-            # Step 4: Create diff_nstf_etf.yaml file with NSTF precedence
-            merged_config = ConfigMerger.merge_configs_stage1(nstf_loaded, etf_loaded)
-
-            # Verify NSTF precedence
-            assert merged_config["global"]["sitename"] == "rcnltxekvzwcslf-y-or-x-004"
-            assert merged_config["global"]["namespace"] == "rcnltxekvzwcslf-y-or-x-004"
-            assert merged_config["api"]["replicas"] == 4
-
-            # Verify ETF base values are preserved where not overridden
-            assert merged_config["global"]["version"] == "25.1.102"  # From ETF
-            assert merged_config["api"]["resources"]["limits"]["cpu"] == 8  # From NSTF
-
-            # Verify ETF base values are preserved where not overridden
-            assert (
-                merged_config["global"]["repository"]
-                == "registry.mtce.vzwops.com/ws_core/5ee22af33858010001ac40e5/occne"
+            # Step 3: Stage 1 - Extract differences between NSPREV and ENGPREV
+            differences = ConfigMerger.compare_configs(engprev_loaded, nsprev_loaded)
+            assert len(differences) > 0, (
+                "Should find differences between NSPREV and ENGPREV"
             )
 
-            # Test saving the merged configuration
+            # Step 4: Stage 1 - Create diff file with differences only
+            diff_data = ConfigMerger.merge_configs_stage1(nsprev_loaded, engprev_loaded)
+
+            # Stage 1 should only contain differences, not complete merge
+            assert "global" in diff_data
+            assert (
+                diff_data["global"]["sitename"] == "rcnltxekvzwcslf-y-or-x-004"
+            )  # Modified in NSPREV
+            assert (
+                diff_data["global"]["namespace"] == "rcnltxekvzwcslf-y-or-x-004"
+            )  # Modified in NSPREV
+            assert (
+                diff_data["global"]["repository"]
+                == "registry.mtce.vzwops.com/ws_core/5ee22af33858010001ac40e5/occne"
+            )  # Modified in NSPREV
+            # version should NOT be in diff since it's same in both NSPREV and ENGPREV
+            assert "version" not in diff_data["global"]
+
+            assert "api" in diff_data
+            assert diff_data["api"]["replicas"] == 4  # Modified in NSPREV
+            assert (
+                diff_data["api"]["resources"]["limits"]["cpu"] == 8
+            )  # Modified in NSPREV
+            assert (
+                diff_data["api"]["resources"]["limits"]["memory"] == "8Gi"
+            )  # Modified in NSPREV
+
+            # Step 5: Stage 2 - Merge diff with ENGNEW (with precedence order)
+            final_config = ConfigMerger.merge_configs_stage2(
+                diff_data, engnew_loaded, engprev_loaded
+            )
+
+            # Verify final precedence: NSPREV > ENGNEW > ENGPREV
+            assert (
+                final_config["global"]["sitename"] == "rcnltxekvzwcslf-y-or-x-004"
+            )  # From NSPREV (highest)
+            assert (
+                final_config["global"]["version"] == "25.1.200"
+            )  # From ENGNEW (overrides ENGPREV)
+            assert final_config["api"]["replicas"] == 4  # From NSPREV (highest)
+            assert (
+                final_config["api"]["max_binlog_size"] == 1073741824
+            )  # From ENGNEW (new feature)
+            assert "new_feature" in final_config  # From ENGNEW
+
+            # Test saving the final configuration
             output_file = tempfile.mktemp(suffix=".yaml")
-            parser.save_yaml_file(merged_config, output_file)
+            parser.save_yaml_file(final_config, output_file)
 
             # Verify the saved file can be loaded back
             loaded_output = parser.load_yaml_file(output_file)
-            assert loaded_output == merged_config
+            assert loaded_output == final_config
 
             os.unlink(output_file)
 
         finally:
             # Clean up temp files
-            for temp_file in [etf_file, newtf_file, nstf_file]:
+            for temp_file in [engprev_file, engnew_file, nsprev_file]:
                 os.unlink(temp_file)
 
-    def test_nstf_precedence_rules(self):
-        """Test that NSTF values take highest precedence in lists and maps."""
-        etf = {
+    def test_nsprev_precedence_rules(self):
+        """Test that NSPREV values take highest precedence in Stage 1 difference extraction."""
+        engprev = {
             "global": {
                 "sitename": "template",
                 "services": ["service1", "service2"],
@@ -126,7 +156,7 @@ class TestIntegration:
             },
         }
 
-        _newtf = {
+        engnew = {
             "global": {
                 "services": ["service3", "service4"],
                 "config": {
@@ -136,7 +166,7 @@ class TestIntegration:
             },
         }
 
-        nstf = {
+        nsprev = {
             "global": {
                 "sitename": "site-specific",
                 "services": ["service5", "service6"],
@@ -147,16 +177,41 @@ class TestIntegration:
             },
         }
 
-        result = ConfigMerger.merge_configs_stage1(nstf, etf)
+        # Stage 1: Extract differences between NSPREV and ENGPREV
+        diff_result = ConfigMerger.merge_configs_stage1(nsprev, engprev)
 
-        # NSTF should override everything
-        assert result["global"]["sitename"] == "site-specific"
-        assert result["global"]["services"] == ["service5", "service6"]
-        assert result["global"]["config"]["key1"] == "site_value1"
-        assert result["global"]["config"]["key2"] == "site_value2"
+        # Stage 1 should only contain differences from NSPREV
+        assert "global" in diff_result
+        assert (
+            diff_result["global"]["sitename"] == "site-specific"
+        )  # Different from ENGPREV
+        assert diff_result["global"]["services"] == [
+            "service5",
+            "service6",
+        ]  # Different from ENGPREV
+        assert (
+            diff_result["global"]["config"]["key1"] == "site_value1"
+        )  # Different from ENGPREV
+        assert (
+            diff_result["global"]["config"]["key2"] == "site_value2"
+        )  # Different from ENGPREV
 
-        # ETF base values should be preserved where not overridden
-        assert result["global"]["config"]["key2"] == "site_value2"  # NSTF overrides ETF
+        # Stage 2: Apply differences with precedence order
+        final_result = ConfigMerger.merge_configs_stage2(diff_result, engnew, engprev)
+
+        # NSPREV should have highest precedence
+        assert final_result["global"]["sitename"] == "site-specific"  # From NSPREV
+        assert final_result["global"]["services"] == [
+            "service5",
+            "service6",
+        ]  # From NSPREV
+        assert final_result["global"]["config"]["key1"] == "site_value1"  # From NSPREV
+        assert (
+            final_result["global"]["config"]["key2"] == "site_value2"
+        )  # From NSPREV (overrides ENGNEW)
+
+        # ENGNEW should provide new features not in NSPREV
+        assert final_result["global"]["config"]["key3"] == "value3"  # From ENGNEW
 
     def _create_temp_yaml(self, data):
         """Create a temporary YAML file with the given data."""

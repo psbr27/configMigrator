@@ -4,7 +4,7 @@ Tests for logging utilities.
 
 import logging
 
-from config_migrator.utils.logging import get_logger, setup_logging
+from cvpilot.utils.logging import get_logger, setup_logging
 
 
 class TestLogging:
@@ -14,7 +14,7 @@ class TestLogging:
         """Test logging setup with default INFO level."""
         logger = setup_logging()
 
-        assert logger.name == "config_migrator"
+        assert logger.name == "cvpilot"
         assert logger.level == logging.INFO
         assert len(logger.handlers) == 1
         assert isinstance(logger.handlers[0], logging.Handler)
@@ -23,7 +23,7 @@ class TestLogging:
         """Test logging setup with DEBUG level."""
         logger = setup_logging("DEBUG")
 
-        assert logger.name == "config_migrator"
+        assert logger.name == "cvpilot"
         assert logger.level == logging.DEBUG
         assert len(logger.handlers) == 1
 
@@ -31,7 +31,7 @@ class TestLogging:
         """Test logging setup with INFO level."""
         logger = setup_logging("INFO")
 
-        assert logger.name == "config_migrator"
+        assert logger.name == "cvpilot"
         assert logger.level == logging.INFO
         assert len(logger.handlers) == 1
 
@@ -39,7 +39,7 @@ class TestLogging:
         """Test logging setup with WARNING level."""
         logger = setup_logging("WARNING")
 
-        assert logger.name == "config_migrator"
+        assert logger.name == "cvpilot"
         assert logger.level == logging.WARNING
         assert len(logger.handlers) == 1
 
@@ -47,14 +47,14 @@ class TestLogging:
         """Test logging setup with ERROR level."""
         logger = setup_logging("ERROR")
 
-        assert logger.name == "config_migrator"
+        assert logger.name == "cvpilot"
         assert logger.level == logging.ERROR
         assert len(logger.handlers) == 1
 
     def test_setup_logging_clears_existing_handlers(self):
         """Test that setup_logging clears existing handlers."""
         # Create a logger with existing handlers
-        logger = logging.getLogger("config_migrator")
+        logger = logging.getLogger("cvpilot")
         logger.addHandler(logging.StreamHandler())
         logger.addHandler(logging.StreamHandler())
 
@@ -70,7 +70,7 @@ class TestLogging:
 
         # Should return the same logger instance
         assert logger1 is logger2
-        assert logger1.name == "config_migrator"
+        assert logger1.name == "cvpilot"
         assert logger1.level == logging.INFO  # Last level set
 
     def test_get_logger_returns_configured_logger(self):
@@ -78,7 +78,7 @@ class TestLogging:
         setup_logging("DEBUG")
         logger = get_logger()
 
-        assert logger.name == "config_migrator"
+        assert logger.name == "cvpilot"
         assert logger.level == logging.DEBUG
 
     def test_logger_handler_configuration(self):
@@ -150,8 +150,8 @@ class TestLogging:
         logger1 = setup_logging("DEBUG")
         logger2 = get_logger()
 
-        assert logger1.name == "config_migrator"
-        assert logger2.name == "config_migrator"
+        assert logger1.name == "cvpilot"
+        assert logger2.name == "cvpilot"
         assert logger1 is logger2
 
     def test_logger_handler_properties(self):
@@ -193,7 +193,7 @@ class TestLogging:
 
     def test_logger_handlers_cleared(self):
         """Test that existing handlers are cleared before adding new ones."""
-        logger = logging.getLogger("config_migrator")
+        logger = logging.getLogger("cvpilot")
 
         # Add some dummy handlers
         logger.addHandler(logging.StreamHandler())

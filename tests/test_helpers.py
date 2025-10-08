@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from config_migrator.utils.helpers import (
+from cvpilot.utils.helpers import (
     format_file_size,
     get_file_info,
     validate_file_paths,

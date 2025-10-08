@@ -7,7 +7,7 @@ import tempfile
 
 import pytest
 
-from config_migrator.core.parser import YAMLParser
+from cvpilot.core.parser import YAMLParser
 
 
 class TestYAMLParser:

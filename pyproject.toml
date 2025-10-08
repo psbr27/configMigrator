@@ -3,10 +3,10 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "config-migrator"
+name = "cvpilot"
 version = "1.0.0"
-description = "Configuration migration tool for YAML files with NSTF precedence"
-authors = [{name = "Config Migrator Team"}]
+description = "Configuration Verification Pilot - YAML configuration migration tool with namespace precedence"
+authors = [{name = "CVPilot Team"}]
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
@@ -24,21 +24,20 @@ dev = [
 ]
 
 [project.scripts]
-config-migrator = "config_migrator.__main__:main"
+cvpilot = "cvpilot.__main__:main"
 
 [tool.mypy]
 python_version = "3.8"
-warn_return_any = false
+warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = false
-ignore_missing_imports = true
+disallow_untyped_defs = true
 
 [tool.ruff]
 target-version = "py38"
 line-length = 88
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I"]
+select = ["E", "F"]
 ignore = ["E501"]
 
 [tool.pytest.ini_options]

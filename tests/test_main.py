@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from config_migrator.__main__ import main
+from cvpilot.__main__ import main
 
 
 class TestMainEntryPoint:
@@ -17,7 +17,7 @@ class TestMainEntryPoint:
         """Test that main function exists and is callable."""
         assert callable(main)
 
-    @patch("config_migrator.__main__.migrate")
+    @patch("cvpilot.__main__.migrate")
     def test_main_calls_migrate(self, mock_migrate):
         """Test that main function calls migrate command."""
         mock_migrate.return_value = None
@@ -26,7 +26,7 @@ class TestMainEntryPoint:
 
         mock_migrate.assert_called_once()
 
-    @patch("config_migrator.__main__.migrate")
+    @patch("cvpilot.__main__.migrate")
     def test_main_handles_exceptions(self, mock_migrate):
         """Test that main function handles exceptions from migrate."""
         mock_migrate.side_effect = Exception("Test exception")
@@ -38,23 +38,23 @@ class TestMainEntryPoint:
     def test_main_module_execution(self):
         """Test that main module can be executed."""
         # This tests the if __name__ == "__main__" block
-        with patch("config_migrator.__main__.main") as _mock_main:
+        with patch("cvpilot.__main__.main"):
             # Simulate module execution
-            import config_migrator.__main__
+            import cvpilot.__main__
 
             # The main function should be available
-            assert hasattr(config_migrator.__main__, "main")
-            assert callable(config_migrator.__main__.main)
+            assert hasattr(cvpilot.__main__, "main")
+            assert callable(cvpilot.__main__.main)
 
     def test_main_imports(self):
         """Test that main module imports correctly."""
-        from config_migrator.__main__ import main
-        from config_migrator.cli.commands import migrate
+        from cvpilot.__main__ import main
+        from cvpilot.cli.commands import migrate
 
         assert main is not None
         assert migrate is not None
 
-    @patch("config_migrator.__main__.migrate")
+    @patch("cvpilot.__main__.migrate")
     def test_main_with_click_runner(self, mock_migrate):
         """Test main function with click runner simulation."""
         # Mock the migrate command to return a result
@@ -70,7 +70,7 @@ class TestMainEntryPoint:
 
     def test_main_module_structure(self):
         """Test that main module has correct structure."""
-        import config_migrator.__main__ as main_module
+        import cvpilot.__main__ as main_module
 
         # Check that required attributes exist
         assert hasattr(main_module, "main")
@@ -81,13 +81,13 @@ class TestMainEntryPoint:
 
     def test_main_docstring(self):
         """Test that main function has proper docstring."""
-        from config_migrator.__main__ import main
+        from cvpilot.__main__ import main
 
         # Check that main function has docstring
         assert main.__doc__ is not None
         assert "Main entry point" in main.__doc__
 
-    @patch("config_migrator.__main__.migrate")
+    @patch("cvpilot.__main__.migrate")
     def test_main_multiple_calls(self, mock_migrate):
         """Test that main function can be called multiple times."""
         mock_migrate.return_value = None
@@ -106,9 +106,9 @@ class TestMainEntryPoint:
 
         try:
             # Set up test argv
-            sys.argv = ["config_migrator", "arg1", "arg2"]
+            sys.argv = ["cvpilot", "arg1", "arg2"]
 
-            with patch("config_migrator.__main__.migrate") as mock_migrate:
+            with patch("cvpilot.__main__.migrate") as mock_migrate:
                 main()
                 mock_migrate.assert_called_once()
         finally:
@@ -117,7 +117,7 @@ class TestMainEntryPoint:
 
     def test_main_module_attributes(self):
         """Test that main module has correct attributes."""
-        import config_migrator.__main__ as main_module
+        import cvpilot.__main__ as main_module
 
         # Check module attributes
         assert hasattr(main_module, "__file__")
@@ -128,7 +128,7 @@ class TestMainEntryPoint:
         """Test that main function has correct signature."""
         import inspect
 
-        from config_migrator.__main__ import main
+        from cvpilot.__main__ import main
 
         # Get function signature
         sig = inspect.signature(main)
@@ -136,7 +136,7 @@ class TestMainEntryPoint:
         # Check that main takes no parameters
         assert len(sig.parameters) == 0
 
-    @patch("config_migrator.__main__.migrate")
+    @patch("cvpilot.__main__.migrate")
     def test_main_with_click_abort(self, mock_migrate):
         """Test main function with click.Abort exception."""
         from click import Abort
@@ -150,20 +150,20 @@ class TestMainEntryPoint:
     def test_main_module_execution_path(self):
         """Test the execution path when module is run directly."""
         # This tests the if __name__ == "__main__" block
-        with patch("config_migrator.__main__.main") as _mock_main:
+        with patch("cvpilot.__main__.main"):
             # Simulate the module being run directly
-            import config_migrator.__main__
+            import cvpilot.__main__
 
             # Check that main function is available
-            assert hasattr(config_migrator.__main__, "main")
+            assert hasattr(cvpilot.__main__, "main")
 
             # The main function should be callable
-            assert callable(config_migrator.__main__.main)
+            assert callable(cvpilot.__main__.main)
 
     def test_main_imports_migrate_command(self):
         """Test that main module imports migrate command correctly."""
-        from config_migrator.__main__ import main
-        from config_migrator.cli.commands import migrate
+        from cvpilot.__main__ import main
+        from cvpilot.cli.commands import migrate
 
         # Both should be available
         assert main is not None
@@ -172,7 +172,7 @@ class TestMainEntryPoint:
         # They should be different objects
         assert main is not migrate
 
-    @patch("config_migrator.__main__.migrate")
+    @patch("cvpilot.__main__.migrate")
     def test_main_with_different_migrate_results(self, mock_migrate):
         """Test main function with different migrate results."""
         # Test with successful result
@@ -195,13 +195,13 @@ class TestMainEntryPoint:
 
     def test_main_function_metadata(self):
         """Test main function metadata."""
-        from config_migrator.__main__ import main
+        from cvpilot.__main__ import main
 
         # Check function name
         assert main.__name__ == "main"
 
         # Check function module
-        assert main.__module__ == "config_migrator.__main__"
+        assert main.__module__ == "cvpilot.__main__"
 
         # Check that it's a function
         assert callable(main)
