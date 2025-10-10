@@ -215,9 +215,7 @@ def migrate(
         logger.info("Stage 2: Merging with ENGNEW")
 
         progress.update(task, description="Stage 2: Merging with ENGNEW...")
-        final_config = ConfigMerger.merge_configs_stage2(
-            diff_data, engnew_data, engprev_data
-        )
+        final_config = ConfigMerger.merge_configs_stage2(diff_data, engnew_data)
 
         # Save final output
         progress.update(task, description=f"Saving final output to {output}...")

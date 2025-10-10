@@ -144,6 +144,8 @@ credentials/
 config.json
 config.yaml
 config.yml
+*.yaml
+*.yml
 
 # Output directories
 output/

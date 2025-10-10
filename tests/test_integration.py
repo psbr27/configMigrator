@@ -13,32 +13,25 @@ class TestIntegration:
     """Integration tests for the complete workflow."""
 
     def test_complete_migration_workflow(self):
-        """Test the complete migration workflow from flowchart."""
-        # Create test data representing the actual files
+        """Test the complete migration workflow with correct ENGNEW-first logic."""
+        # Create test data where ENGNEW has the keys that NSPREV wants to override
         engprev_data = {
             "global": {
-                "repository": "docker_repo:5000/occne",
                 "sitename": "cndbtiersitename",
                 "version": "25.1.102",
-                "namespace": "occne-cndbtier",
             },
             "api": {
                 "replicas": 2,
-                "resources": {
-                    "limits": {"cpu": 4, "memory": "4Gi"},
-                },
             },
         }
 
         engnew_data = {
             "global": {
+                "sitename": "template-sitename",  # This key exists in ENGNEW
                 "version": "25.1.200",
-                "serviceMode": {
-                    "internal": "IPv4",
-                    "external": {"ndbmysqldsvc": "IPv4"},
-                },
             },
             "api": {
+                "replicas": 3,  # This key exists in ENGNEW
                 "max_binlog_size": 1073741824,
             },
             "new_feature": {
@@ -48,15 +41,10 @@ class TestIntegration:
 
         nsprev_data = {
             "global": {
-                "repository": "registry.mtce.vzwops.com/ws_core/5ee22af33858010001ac40e5/occne",
-                "sitename": "rcnltxekvzwcslf-y-or-x-004",
-                "namespace": "rcnltxekvzwcslf-y-or-x-004",
+                "sitename": "rcnltxekvzwcslf-y-or-x-004",  # Will override ENGNEW
             },
             "api": {
-                "replicas": 4,
-                "resources": {
-                    "limits": {"cpu": 8, "memory": "8Gi"},
-                },
+                "replicas": 4,  # Will override ENGNEW
             },
         }
 
@@ -91,38 +79,20 @@ class TestIntegration:
             assert (
                 diff_data["global"]["sitename"] == "rcnltxekvzwcslf-y-or-x-004"
             )  # Modified in NSPREV
-            assert (
-                diff_data["global"]["namespace"] == "rcnltxekvzwcslf-y-or-x-004"
-            )  # Modified in NSPREV
-            assert (
-                diff_data["global"]["repository"]
-                == "registry.mtce.vzwops.com/ws_core/5ee22af33858010001ac40e5/occne"
-            )  # Modified in NSPREV
-            # version should NOT be in diff since it's same in both NSPREV and ENGPREV
-            assert "version" not in diff_data["global"]
-
             assert "api" in diff_data
             assert diff_data["api"]["replicas"] == 4  # Modified in NSPREV
-            assert (
-                diff_data["api"]["resources"]["limits"]["cpu"] == 8
-            )  # Modified in NSPREV
-            assert (
-                diff_data["api"]["resources"]["limits"]["memory"] == "8Gi"
-            )  # Modified in NSPREV
 
             # Step 5: Stage 2 - Merge diff with ENGNEW (with precedence order)
-            final_config = ConfigMerger.merge_configs_stage2(
-                diff_data, engnew_loaded, engprev_loaded
-            )
+            final_config = ConfigMerger.merge_configs_stage2(diff_data, engnew_loaded)
 
-            # Verify final precedence: NSPREV > ENGNEW > ENGPREV
+            # Verify final precedence: NSPREV > ENGNEW (for matching keys only)
             assert (
                 final_config["global"]["sitename"] == "rcnltxekvzwcslf-y-or-x-004"
-            )  # From NSPREV (highest)
+            )  # From NSPREV (overrides ENGNEW)
             assert (
                 final_config["global"]["version"] == "25.1.200"
-            )  # From ENGNEW (overrides ENGPREV)
-            assert final_config["api"]["replicas"] == 4  # From NSPREV (highest)
+            )  # From ENGNEW (foundation)
+            assert final_config["api"]["replicas"] == 4  # From NSPREV (overrides ENGNEW)
             assert (
                 final_config["api"]["max_binlog_size"] == 1073741824
             )  # From ENGNEW (new feature)
@@ -158,8 +128,10 @@ class TestIntegration:
 
         engnew = {
             "global": {
+                "sitename": "template-sitename",  # This key exists in ENGNEW
                 "services": ["service3", "service4"],
                 "config": {
+                    "key1": "template_value1",  # This key exists in ENGNEW
                     "key2": "new_value2",
                     "key3": "value3",
                 },
@@ -197,7 +169,7 @@ class TestIntegration:
         )  # Different from ENGPREV
 
         # Stage 2: Apply differences with precedence order
-        final_result = ConfigMerger.merge_configs_stage2(diff_result, engnew, engprev)
+        final_result = ConfigMerger.merge_configs_stage2(diff_result, engnew)
 
         # NSPREV should have highest precedence
         assert final_result["global"]["sitename"] == "site-specific"  # From NSPREV

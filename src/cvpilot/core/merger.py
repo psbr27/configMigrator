@@ -66,38 +66,27 @@ class ConfigMerger:
     def merge_configs_stage2(
         diff_file: Dict[str, Any],
         engnew: Dict[str, Any],
-        engprev: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """
         Stage 2 merger with correct precedence order:
-        1. Start with ENGPREV (original template base)
-        2. Apply ENGNEW (new template features)
-        3. Apply diff_file (NSPREV differences - site-specific overrides, highest precedence)
+        1. Start with ENGNEW (new template structure as foundation)
+        2. Apply diff_file values ONLY for keys that exist in ENGNEW (selective overlay)
 
-        Final precedence: NSPREV > ENGNEW > ENGPREV
+        Final precedence: NSPREV (via diff) > ENGNEW (for matching keys only)
 
         Args:
-            diff_file: diff_nsprev_engprev.yml data (from Stage 1) - differences only
-            engnew: ENGNEW data (engineering new template) - medium precedence
-            engprev: ENGPREV data (engineering previous template) - lowest precedence base
+            diff_file: diff_nsprev_engprev.yml data (from Stage 1) - NSPREV differences only
+            engnew: ENGNEW data (engineering new template) - foundation structure
 
         Returns:
-            Merged configuration dictionary
+            Merged configuration dictionary with ENGNEW structure and NSPREV customizations
         """
-        if engprev is not None:
-            # Step 1: Start with ENGPREV as foundation
-            result = copy.deepcopy(engprev)
-
-            # Step 2: Apply ENGNEW (new template features)
-            result = ConfigMerger.deep_merge(result, engnew)
-
-            # Step 3: Apply NSPREV differences (site-specific overrides - highest precedence)
-            result = ConfigMerger.deep_merge(result, diff_file)
-        else:
-            # Backward compatibility: if no ENGPREV provided, use old logic
-            result = copy.deepcopy(engnew)
-            result = ConfigMerger._merge_with_stage2_rules(result, diff_file)
-
+        # Start with ENGNEW as foundation
+        result = copy.deepcopy(engnew)
+        
+        # Apply DIFF values only for keys that exist in ENGNEW
+        result = ConfigMerger._selective_overlay(result, diff_file)
+        
         return result
 
     @staticmethod
@@ -124,6 +113,70 @@ class ConfigMerger:
                 # Modify: Use value from diff_nstf_etf.yml (NSTF precedence)
                 result[key] = copy.deepcopy(value)
 
+        return result
+
+    @staticmethod
+    def _selective_overlay(
+        engnew: Dict[str, Any], diff_file: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Apply DIFF values only for keys that exist in ENGNEW.
+        This ensures ENGNEW structure is preserved while applying NSPREV customizations.
+
+        Args:
+            engnew: ENGNEW configuration (foundation structure)
+            diff_file: DIFF configuration (NSPREV customizations to apply selectively)
+
+        Returns:
+            ENGNEW with NSPREV customizations applied only for existing keys
+        """
+        result = copy.deepcopy(engnew)
+
+        for key, value in engnew.items():
+            if key in diff_file:
+                if (
+                    isinstance(value, dict)
+                    and isinstance(diff_file[key], dict)
+                ):
+                    # Recursively apply selective overlay for nested dictionaries
+                    result[key] = ConfigMerger._selective_overlay(value, diff_file[key])
+                elif (
+                    isinstance(value, list)
+                    and isinstance(diff_file[key], list)
+                ):
+                    # For lists, merge items by index (preserve ENGNEW structure)
+                    result[key] = ConfigMerger._merge_list_items(value, diff_file[key])
+                else:
+                    # Apply DIFF value for matching key (scalar values)
+                    result[key] = copy.deepcopy(diff_file[key])
+            # If key not in diff_file, keep original ENGNEW value
+
+        return result
+
+    @staticmethod
+    def _merge_list_items(engnew_list: list, diff_list: list) -> list:
+        """
+        Merge list items by index, preserving ENGNEW structure and applying DIFF values.
+        
+        Args:
+            engnew_list: ENGNEW list (foundation structure)
+            diff_list: DIFF list (NSPREV customizations)
+            
+        Returns:
+            Merged list with ENGNEW structure and DIFF values applied
+        """
+        result = copy.deepcopy(engnew_list)
+        
+        # Apply DIFF values for matching indices
+        for i, diff_item in enumerate(diff_list):
+            if i < len(result):
+                if isinstance(result[i], dict) and isinstance(diff_item, dict):
+                    # Use deep_merge to properly combine dictionaries within list items
+                    result[i] = ConfigMerger.deep_merge(result[i], diff_item)
+                else:
+                    # Replace scalar values or non-dict items
+                    result[i] = copy.deepcopy(diff_item)
+        
         return result
 
     @staticmethod

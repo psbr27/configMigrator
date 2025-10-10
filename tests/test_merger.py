@@ -118,84 +118,78 @@ class TestConfigMerger:
         assert result["new_section"]["new_key"] == "new_value"
 
     def test_merge_configs_stage2_precedence_order(self):
-        """Test Stage 2 - precedence order: NSPREV > ENGNEW > ENGPREV."""
-        # ENGPREV (base template, lowest precedence)
-        engprev = {
+        """Test Stage 2 - precedence order: NSPREV > ENGNEW (for matching keys only)."""
+        # ENGNEW (new template, foundation structure)
+        engnew = {
             "global": {
                 "sitename": "cndbtiersitename",
-                "version": "25.1.102",
-                "feature_old": "enabled",
+                "version": "25.1.200",
+                "feature_new": "enabled",
             },
             "api": {
                 "replicas": 2,
-                "timeout": 30,
-            },
-        }
-
-        # ENGNEW (new template, medium precedence)
-        engnew = {
-            "global": {
-                "version": "25.1.200",  # Override ENGPREV
-                "feature_new": "enabled",  # Add new feature
-            },
-            "api": {
-                "timeout": 60,  # Override ENGPREV
+                "timeout": 60,
             },
             "new_component": {
                 "enabled": True,
             },
         }
 
-        # Diff file (NSPREV differences from Stage 1, highest precedence)
+        # Diff file (NSPREV differences from Stage 1, highest precedence for matching keys)
         diff_file = {
             "global": {
-                "sitename": "rcnltxekvzwcslf-y-or-x-004",  # Override everything
-                "namespace": "rcnltxekvzwcslf-y-or-x-004",  # Site-specific
+                "sitename": "rcnltxekvzwcslf-y-or-x-004",  # Override ENGNEW
+                "namespace": "rcnltxekvzwcslf-y-or-x-004",  # Not in ENGNEW, should be ignored
             },
             "api": {
-                "replicas": 4,  # Override ENGNEW and ENGPREV
+                "replicas": 4,  # Override ENGNEW
+            },
+            "old_component": {  # Not in ENGNEW, should be ignored
+                "enabled": False,
             },
         }
 
-        result = ConfigMerger.merge_configs_stage2(diff_file, engnew, engprev)
+        result = ConfigMerger.merge_configs_stage2(diff_file, engnew)
 
         # Test final precedence order
-        # NSPREV (diff_file) should have highest precedence
+        # NSPREV (diff_file) should override ENGNEW for matching keys
         assert (
             result["global"]["sitename"] == "rcnltxekvzwcslf-y-or-x-004"
-        )  # From NSPREV
-        assert (
-            result["global"]["namespace"] == "rcnltxekvzwcslf-y-or-x-004"
-        )  # From NSPREV
-        assert result["api"]["replicas"] == 4  # From NSPREV
+        )  # From NSPREV (overrides ENGNEW)
+        assert result["api"]["replicas"] == 4  # From NSPREV (overrides ENGNEW)
 
-        # ENGNEW should override ENGPREV where NSPREV doesn't override
+        # ENGNEW values should be preserved where not overridden by NSPREV
         assert result["global"]["version"] == "25.1.200"  # From ENGNEW
         assert result["global"]["feature_new"] == "enabled"  # From ENGNEW
         assert result["api"]["timeout"] == 60  # From ENGNEW
         assert result["new_component"]["enabled"]  # From ENGNEW
 
-        # ENGPREV should provide base values where not overridden
-        assert result["global"]["feature_old"] == "enabled"  # From ENGPREV
+        # DIFF keys not in ENGNEW should be ignored
+        assert "namespace" not in result["global"]  # Not in ENGNEW, ignored
+        assert "old_component" not in result  # Not in ENGNEW, ignored
 
-    def test_merge_configs_stage2_without_engprev(self):
-        """Test Stage 2 backward compatibility without ENGPREV parameter."""
+    def test_merge_configs_stage2_selective_overlay(self):
+        """Test Stage 2 selective overlay - only matching keys are updated."""
         engnew = {
-            "global": {"version": "25.1.200"},
+            "global": {"version": "25.1.200", "sitename": "template"},
             "api": {"replicas": 2},
         }
 
         diff_file = {
             "global": {"sitename": "site-specific"},
             "api": {"replicas": 4},
+            "ignored_section": {"key": "value"},  # Not in ENGNEW, should be ignored
         }
 
-        # Test without ENGPREV parameter (backward compatibility)
         result = ConfigMerger.merge_configs_stage2(diff_file, engnew)
 
+        # ENGNEW values should be preserved where not overridden
         assert result["global"]["version"] == "25.1.200"  # From ENGNEW
+        # NSPREV should override ENGNEW for matching keys
         assert result["global"]["sitename"] == "site-specific"  # From diff_file
         assert result["api"]["replicas"] == 4  # From diff_file (overrides ENGNEW)
+        # DIFF keys not in ENGNEW should be ignored
+        assert "ignored_section" not in result
 
     def test_merge_configs_list_handling_stage1(self):
         """Test Stage 1 difference extraction with list handling."""
@@ -222,24 +216,20 @@ class TestConfigMerger:
 
     def test_merge_configs_list_handling_stage2(self):
         """Test Stage 2 list handling with precedence."""
-        engprev = {
-            "services": ["service1", "service2"],
-        }
-
         engnew = {
-            "services": ["service3", "service4"],  # Replace ENGPREV list
+            "services": ["service3", "service4"],  # ENGNEW foundation
         }
 
         diff_file = {
             "services": [
                 "service5",
                 "service6",
-            ],  # NSPREV override (highest precedence)
+            ],  # NSPREV override (highest precedence for matching keys)
         }
 
-        result = ConfigMerger.merge_configs_stage2(diff_file, engnew, engprev)
+        result = ConfigMerger.merge_configs_stage2(diff_file, engnew)
 
-        # NSPREV (diff_file) should override everything
+        # NSPREV (diff_file) should override ENGNEW for matching keys
         assert result["services"] == ["service5", "service6"]
 
     def test_compare_configs(self):

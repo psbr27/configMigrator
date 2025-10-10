@@ -63,9 +63,11 @@ class TestCLICommands:
         # Sample ENGNEW data (engineering new - new template with updates)
         engnew_data = {
             "global": {
+                "sitename": "template-sitename",  # This key exists in ENGNEW
                 "version": "25.1.200",
                 "image": {"tag": "25.1.200"},
             },
+            "site": "template-site",  # This key exists in ENGNEW
             "config": {
                 "database": {
                     "host": "engnew-db.example.com",
