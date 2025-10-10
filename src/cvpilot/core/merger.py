@@ -393,8 +393,11 @@ class ConfigMerger:
         # Check merge_rules with matching scope
         merge_rules = rulebook.rules.get('merge_rules', {})
         for field_name, config in merge_rules.items():
-            if config.get('scope') == 'global' and field_name in path:
-                return True
+            if config.get('scope') == 'global':
+                # Check if last segment of path matches field name
+                path_segments = path.split('.')
+                if path_segments[-1] == field_name:
+                    return True
             # Check specific scope paths if needed
         
         return False
@@ -446,22 +449,18 @@ class ConfigMerger:
                                 if key in result:
                                     del result[key]
                     elif strategy == "merge":
-                        # Smart merge ENGNEW + original NSPREV
-                        if original_nsprev:
-                            original_value = ConfigMerger._get_nested_value(original_nsprev, current_path)
-                            if original_value is not None:
-                                if isinstance(engnew_value, dict) and isinstance(original_value, dict):
-                                    result[key] = ConfigMerger._merge_dict_with_strategy(
-                                        engnew_value, original_value, strategy
-                                    )
-                                elif isinstance(engnew_value, list) and isinstance(original_value, list):
-                                    result[key] = ConfigMerger._merge_list_with_strategy(
-                                        engnew_value, original_value, strategy, current_path
-                                    )
-                                else:
-                                    # Scalar or type mismatch - use ENGNEW
-                                    pass  # result already has ENGNEW value
-                            # If original NSPREV has no value, keep ENGNEW
+                        # Smart merge ENGNEW + DIFF
+                        if isinstance(engnew_value, dict) and isinstance(diff_value, dict):
+                            result[key] = ConfigMerger._merge_dict_with_strategy(
+                                engnew_value, diff_value, strategy
+                            )
+                        elif isinstance(engnew_value, list) and isinstance(diff_value, list):
+                            result[key] = ConfigMerger._merge_list_with_strategy(
+                                engnew_value, diff_value, strategy, current_path
+                            )
+                        else:
+                            # Scalar or type mismatch - use ENGNEW
+                            pass  # result already has ENGNEW value
                     continue
                 
                 # No rulebook rule - apply DIFF value (default overlay behavior)

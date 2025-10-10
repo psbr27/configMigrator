@@ -383,7 +383,6 @@ def generate_rulebook_from_analysis(analysis: Dict[str, Any]) -> Dict[str, Any]:
         Dictionary representing the rulebook YAML structure
     """
     rulebook = {
-        'default_strategy': 'engnew',
         'merge_rules': {
             'annotations': {
                 'strategy': 'merge',
