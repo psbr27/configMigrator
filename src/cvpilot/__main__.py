@@ -1,15 +1,15 @@
 """
 Main entry point for cvpilot.
 
-Usage: python -m cvpilot <nsprev_file> <engprev_file> <engnew_file>
+Usage: python -m cvpilot <command> [options]
 """
 
-from cvpilot.cli.commands import migrate
+from cvpilot.cli.commands import cli
 
 
 def main():
     """Main entry point for the cvpilot CLI."""
-    migrate()
+    cli()
 
 
 if __name__ == "__main__":

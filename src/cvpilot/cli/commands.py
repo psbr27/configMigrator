@@ -14,6 +14,7 @@ from rich.table import Table
 
 from cvpilot.core.merger import ConfigMerger
 from cvpilot.core.parser import YAMLParser
+from cvpilot.core.analyzer import ConflictAnalyzer, generate_rulebook_from_analysis
 from cvpilot.utils.logging import setup_logging
 
 
@@ -126,6 +127,11 @@ def _generate_output_filename(nsprev_file: Path, engnew_data: dict) -> str:
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output")
 @click.option("--debug", is_flag=True, help="Debug output")
 @click.option("--summary", is_flag=True, help="Show merge summary")
+@click.option(
+    "--rules",
+    type=click.Path(path_type=Path),
+    help="Path to merge rules YAML file for rulebook-based merging"
+)
 def migrate(
     nsprev_file: Path,
     engprev_file: Path,
@@ -134,6 +140,7 @@ def migrate(
     verbose: bool,
     debug: bool,
     summary: bool,
+    rules: Path,
 ):
     """
     CVPilot Configuration Migration - Complete Workflow: Stage 1 + Stage 2.
@@ -215,7 +222,13 @@ def migrate(
         logger.info("Stage 2: Merging with ENGNEW")
 
         progress.update(task, description="Stage 2: Merging with ENGNEW...")
-        final_config = ConfigMerger.merge_configs_stage2(diff_data, engnew_data)
+        
+        # Use rulebook-based merging if rules file is provided
+        if rules and rules.exists():
+            logger.info(f"Using rulebook-based merging with rules: {rules}")
+            final_config = ConfigMerger.merge_with_rulebook(diff_data, engnew_data, str(rules), nsprev_data)
+        else:
+            final_config = ConfigMerger.merge_configs_stage2(diff_data, engnew_data)
 
         # Save final output
         progress.update(task, description=f"Saving final output to {output}...")
@@ -248,10 +261,84 @@ def migrate(
         raise click.Abort()
 
 
+@click.command()
+@click.argument("nsprev_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("engnew_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "-o",
+    "--output",
+    default="merge_rules.yaml",
+    help="Output file name for generated rulebook (default: merge_rules.yaml)",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Verbose output")
+@click.option("--debug", is_flag=True, help="Debug output")
+def generate_rules(
+    nsprev_file: Path,
+    engnew_file: Path,
+    output: str,
+    verbose: bool,
+    debug: bool,
+):
+    """
+    Generate merge rules YAML file from analysis of NSPREV and ENGNEW files.
+    
+    Analyzes both files to detect conflicts in list-type fields (annotations, labels, etc.)
+    and generates intelligent merge strategy suggestions.
+    
+    Arguments:
+        NSPREV_FILE: Namespace previous configuration file
+        ENGNEW_FILE: Engineering new template file
+    """
+    # Setup logging
+    log_level = "DEBUG" if debug else "INFO" if verbose else "WARNING"
+    logger = setup_logging(log_level)
+    console = Console()
+
+    try:
+        # Initialize analyzer
+        analyzer = ConflictAnalyzer()
+        
+        console.print("[bold blue]Analyzing files for conflicts...[/bold blue]")
+        
+        # Analyze files
+        analysis = analyzer.analyze_files(str(nsprev_file), str(engnew_file))
+        
+        # Generate rulebook
+        rulebook_content = generate_rulebook_from_analysis(analysis)
+        
+        # Save rulebook
+        with open(output, 'w', encoding='utf-8') as f:
+            import yaml
+            yaml.dump(rulebook_content, f, default_flow_style=False, sort_keys=False)
+        
+        # Show summary
+        summary = analysis.get('summary', {})
+        console.print(f"[bold green]✓ Generated rulebook: {output}[/bold green]")
+        console.print(f"  - Total conflicts detected: {summary.get('total_conflicts', 0)}")
+        console.print(f"  - Suggested merges: {summary.get('suggested_merges', 0)}")
+        console.print(f"  - Suggested NSPREV preservations: {summary.get('suggested_nsprev', 0)}")
+        console.print(f"  - Suggested ENGNEW replacements: {summary.get('suggested_engnew', 0)}")
+        
+        if summary.get('high_confidence', 0) > 0:
+            console.print(f"  - High confidence suggestions: {summary.get('high_confidence', 0)}")
+        
+        console.print("\n[bold blue]Next steps:[/bold blue]")
+        console.print(f"1. Review and customize {output}")
+        console.print(f"2. Run: cvpilot migrate <nsprev> <engprev> <engnew> --rules {output}")
+        
+        logger.info(f"Rulebook generation completed: {output}")
+
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        console.print(f"[bold red]Error: {e}[/bold red]")
+        raise click.Abort()
+
+
 @click.group()
 def cli():
     """CVPilot - Configuration Verification Pilot for YAML merging with namespace precedence."""
 
 
-# Add the migrate command to the CLI group
+# Add the commands to the CLI group
 cli.add_command(migrate)
+cli.add_command(generate_rules)
