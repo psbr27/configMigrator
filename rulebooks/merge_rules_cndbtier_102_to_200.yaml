@@ -1,0 +1,29 @@
+merge_rules:
+  commonlabels:
+    strategy: merge
+    scope: global
+path_overrides:
+  api.externalService.annotations:
+    strategy: nsprev 
+  api.ndbapp.externalconnectivityService.annotations:
+    strategy: nsprev
+  api.commonlabels:
+    strategy: nsprev
+  api.ndbapp.commonlabels:
+    strategy: nsprev
+  mgm.commonlabels:
+    strategy: nsprev
+  ndb.commonlabels:
+    strategy: nsprev
+  db-monitor-svc.podAnnotations:
+    strategy: merge
+  db-backup-manager-svc.pod.annotations:
+    strategy: merge
+  serviceAccount.name:
+    strategy: nsprev
+  db-replication-svc.dbreplsvcdeployments[0].service.annotations:
+    strategy: nsprev
+  db-replication-svc.dbreplsvcdeployments[1].service.annotations:
+    strategy: nsprev
+  db-replication-svc.dbreplsvcdeployments[2].service.annotations:
+    strategy: nsprev
