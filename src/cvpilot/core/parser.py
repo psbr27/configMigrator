@@ -70,8 +70,10 @@ class YAMLParser:
             file_path: Output file path
         """
         try:
+            # Normalize data to fix annotations formatting issues
+            normalized_data = self._normalize_annotations_lists(data)
             with open(file_path, "w", encoding="utf-8") as file:
-                self.yaml.dump(data, file)
+                self.yaml.dump(normalized_data, file)
         except Exception as e:
             raise ValueError(f"Error writing to {file_path}: {e}")
 
@@ -93,3 +95,55 @@ class YAMLParser:
                 return False, f"Invalid YAML syntax in: {file_path}"
 
         return True, None
+
+    def _normalize_annotations_lists(self, data):
+        """
+        Normalize annotations lists to ensure proper YAML formatting.
+
+        Splits multi-key dictionaries in annotations lists into separate single-key dictionaries
+        to prevent YAML formatting issues where list items lose their dash prefixes.
+
+        Args:
+            data: Data structure to normalize
+
+        Returns:
+            Normalized data structure
+        """
+        if isinstance(data, dict):
+            result = {}
+            for key, value in data.items():
+                if key == "annotations" and isinstance(value, list):
+                    # Normalize annotations list
+                    result[key] = self._normalize_annotation_list(value)
+                else:
+                    # Recursively process nested structures
+                    result[key] = self._normalize_annotations_lists(value)
+            return result
+        elif isinstance(data, list):
+            return [self._normalize_annotations_lists(item) for item in data]
+        else:
+            return data
+
+    def _normalize_annotation_list(self, annotations_list):
+        """
+        Normalize a single annotations list.
+
+        Args:
+            annotations_list: List of annotation dictionaries
+
+        Returns:
+            Normalized list with single-key dictionaries
+        """
+        if not isinstance(annotations_list, list):
+            return annotations_list
+
+        normalized = []
+        for item in annotations_list:
+            if isinstance(item, dict):
+                # Split multi-key dictionaries into separate single-key dictionaries
+                for key, value in item.items():
+                    normalized.append({key: value})
+            else:
+                normalized.append(item)
+
+        return normalized

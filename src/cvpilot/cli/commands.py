@@ -230,6 +230,14 @@ def migrate(
         else:
             final_config = ConfigMerger.merge_configs_stage2(diff_data, engnew_data)
 
+        # Apply version replacement to ensure consistency
+        progress.update(task, description="Applying version normalization...")
+        logger.debug("Applying version replacement for consistency")
+        target_version = ConfigMerger._extract_target_version(engnew_data)
+        if target_version:
+            final_config = ConfigMerger.replace_version_references(final_config, target_version)
+            logger.info(f"Version references normalized to: {target_version}")
+
         # Save final output
         progress.update(task, description=f"Saving final output to {output}...")
         logger.debug(f"Saving final configuration to: {output}")

@@ -8,6 +8,7 @@ Implements the core logic for merging YAML configurations according to the flowc
 """
 
 import copy
+import re
 from typing import Any, Dict, List, Optional
 
 
@@ -171,8 +172,9 @@ class ConfigMerger:
         for i, diff_item in enumerate(diff_list):
             if i < len(result):
                 if isinstance(result[i], dict) and isinstance(diff_item, dict):
-                    # Use deep_merge to properly combine dictionaries within list items
-                    result[i] = ConfigMerger.deep_merge(result[i], diff_item)
+                    # For list items that are dictionaries, replace entirely instead of merging
+                    # This prevents creating dictionaries with multiple keys that break YAML formatting
+                    result[i] = copy.deepcopy(diff_item)
                 else:
                     # Replace scalar values or non-dict items
                     result[i] = copy.deepcopy(diff_item)
@@ -848,16 +850,16 @@ class ConfigMerger:
     def _normalize_list_format(value: List[Any]) -> List[Any]:
         """
         Normalize list format to ensure proper YAML structure.
-        
+
         Args:
             value: List to normalize
-            
+
         Returns:
             Normalized list
         """
         if not isinstance(value, list):
             return value
-        
+
         # Ensure all items are properly formatted
         normalized = []
         for item in value:
@@ -866,5 +868,157 @@ class ConfigMerger:
                 normalized.append(copy.deepcopy(item))
             else:
                 normalized.append(copy.deepcopy(item))
-        
+
         return normalized
+
+    @staticmethod
+    def replace_version_references(
+        config: Dict[str, Any],
+        target_version: str,
+        old_version_pattern: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Replace old version references with target version throughout the configuration.
+
+        This is a generic implementation that:
+        1. Extracts target version from config if not provided
+        2. Finds and replaces old version patterns with the new version
+        3. Handles both exact matches and regex patterns
+
+        Args:
+            config: Configuration dictionary to process
+            target_version: Target version to replace with (e.g., "25.1.200")
+            old_version_pattern: Optional specific old version to replace (auto-detected if None)
+
+        Returns:
+            Configuration with version references updated
+        """
+        import re
+
+        # Extract target version if not provided
+        if not target_version:
+            target_version = ConfigMerger._extract_target_version(config)
+            if not target_version:
+                # No version found, return unchanged
+                return config
+
+        # Auto-detect old version pattern if not provided
+        if not old_version_pattern:
+            old_version_pattern = ConfigMerger._detect_old_version_pattern(config, target_version)
+            if not old_version_pattern:
+                # No old version found, return unchanged
+                return config
+
+        # Apply version replacement recursively
+        result = ConfigMerger._replace_version_recursive(config, old_version_pattern, target_version)
+
+        return result
+
+    @staticmethod
+    def _extract_target_version(config: Dict[str, Any]) -> Optional[str]:
+        """
+        Extract target version from configuration using standard extraction logic.
+
+        Args:
+            config: Configuration dictionary
+
+        Returns:
+            Version string or None if not found
+        """
+        # Try global.image.tag first
+        global_section = config.get("global", {})
+        target_version = global_section.get("image", {}).get("tag")
+
+        if not target_version:
+            # Fallback to global.version
+            target_version = global_section.get("version")
+
+        return target_version
+
+    @staticmethod
+    def _detect_old_version_pattern(config: Dict[str, Any], target_version: str) -> Optional[str]:
+        """
+        Detect old version patterns in the configuration that should be replaced.
+
+        Args:
+            config: Configuration dictionary
+            target_version: Target version to avoid detecting
+
+        Returns:
+            Old version pattern or None if not found
+        """
+        import re
+
+        # Look for version patterns (X.Y.Z format)
+        version_pattern = re.compile(r'\b(\d+\.\d+\.\d+)\b')
+
+        # Collect all version strings found in the config
+        found_versions = set()
+        ConfigMerger._collect_version_strings(config, version_pattern, found_versions)
+
+        # Remove the target version from candidates
+        found_versions.discard(target_version)
+
+        # Return the first old version found (could be enhanced to prioritize based on criteria)
+        if found_versions:
+            # Sort versions and return the most likely candidate (e.g., closest to target)
+            sorted_versions = sorted(found_versions)
+            return sorted_versions[0]
+
+        return None
+
+    @staticmethod
+    def _collect_version_strings(
+        data: Any,
+        version_pattern,
+        found_versions: set
+    ) -> None:
+        """
+        Recursively collect version strings from data structure.
+
+        Args:
+            data: Data to search (dict, list, str, etc.)
+            version_pattern: Compiled regex pattern for version detection
+            found_versions: Set to collect found versions
+        """
+        if isinstance(data, dict):
+            for value in data.values():
+                ConfigMerger._collect_version_strings(value, version_pattern, found_versions)
+        elif isinstance(data, list):
+            for item in data:
+                ConfigMerger._collect_version_strings(item, version_pattern, found_versions)
+        elif isinstance(data, str):
+            # Search for version patterns in string values
+            matches = version_pattern.findall(data)
+            found_versions.update(matches)
+
+    @staticmethod
+    def _replace_version_recursive(
+        data: Any,
+        old_version: str,
+        new_version: str
+    ) -> Any:
+        """
+        Recursively replace version references in data structure.
+
+        Args:
+            data: Data to process
+            old_version: Old version to replace
+            new_version: New version to replace with
+
+        Returns:
+            Data with version references replaced
+        """
+        if isinstance(data, dict):
+            result = {}
+            for key, value in data.items():
+                result[key] = ConfigMerger._replace_version_recursive(value, old_version, new_version)
+            return result
+        elif isinstance(data, list):
+            return [ConfigMerger._replace_version_recursive(item, old_version, new_version) for item in data]
+        elif isinstance(data, str):
+            # Replace exact matches of the old version with new version
+            return data.replace(old_version, new_version)
+        else:
+            # Return unchanged for other types (int, bool, None, etc.)
+            return copy.deepcopy(data)
