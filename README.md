@@ -7,9 +7,10 @@ A professional, enterprise-ready tool for merging YAML configuration files with 
 CVPilot implements the complete configuration migration workflow:
 
 **Stage 1**: NSPREV + ENGPREV → diff_nsprev_engprev.yaml (difference extraction)
-**Stage 2**: diff + ENGNEW → auto-generated output file
+**Stage 2**: diff + ENGNEW → intermediate result (merge with precedence rules)
+**Stage 3**: Path transformation detection → final output file (resolve duplicate values)
 
-The tool automatically runs both stages in sequence to produce the final merged configuration with auto-generated filenames.
+The tool automatically runs all three stages in sequence to produce the final merged configuration with auto-generated filenames.
 
 ## Precedence Rules
 
@@ -140,14 +141,24 @@ python -m cvpilot \
 3. **Compare**: Identify differences between NSPREV and ENGPREV
 4. **Extract Differences**: Create diff_nsprev_engprev.yaml containing only the differences (not a complete merge)
 
-### Stage 2: Diff + ENGNEW + ENGPREV (Final Merge)
+### Stage 2: Diff + ENGNEW + ENGPREV (Merge with Precedence)
 1. **Load ENGNEW**: Load the new template file
 2. **Apply Precedence**: Apply Stage 2 precedence rules with three-way merge:
    - **NSPREV (via diff)**: Highest precedence - site-specific values override everything
    - **ENGNEW**: Medium precedence - new features and updates
    - **ENGPREV**: Lowest precedence - base template values
-3. **Generate Filename**: Auto-generate output filename from NSPREV basename + ENGNEW version
-4. **Output**: Generate final merged YAML file with auto-generated name
+3. **Version Normalization**: Ensure version references are consistent throughout
+
+### Stage 3: Path Transformation Detection (Structural Changes)
+1. **Scan for Duplicates**: Detect values that appear in multiple paths (indicating structural changes)
+2. **Compare with Reference**: Use ENGNEW as reference to determine correct structure
+3. **Interactive Resolution**: Present findings to user with recommendations:
+   - **High confidence**: Clear transformation (old path → new path)
+   - **Medium confidence**: Both paths exist in reference (possible duplication)
+   - **Low confidence**: Neither path exists in reference (manual review needed)
+4. **Apply Transformations**: User selects which transformations to apply (or auto-apply high-confidence ones)
+5. **Generate Filename**: Auto-generate output filename from NSPREV basename + ENGNEW version
+6. **Output**: Generate final merged YAML file with auto-generated name
 
 ## Output
 
