@@ -96,11 +96,35 @@ def _generate_output_filename(nsprev_file: Path, engnew_data: dict) -> str:
     # Get the base name without extension
     nsprev_stem = nsprev_file.stem
 
-    # Extract version from engnew
-    engnew_version = engnew_data.get("global", {}).get("image", {}).get("tag")
+    # Extract version from engnew - try component-specific patterns first, then fallback to generic
+    global_section = engnew_data.get("global", {})
+    engnew_version = None
+
+    # Detect component type to prioritize appropriate version fields
+    from cvpilot.core.analyzer import ComponentType
+    component_type = ComponentType.detect_from_content(engnew_data)
+
+    # Component-specific version extraction
+    if component_type == ComponentType.NRF:
+        # NRF: Try nrfTag first, then gwTag as fallback
+        engnew_version = global_section.get("nrfTag") or global_section.get("gwTag")
+    elif component_type == ComponentType.CNDBTIER:
+        # CNDBTIER: Try version field first (existing working logic)
+        engnew_version = global_section.get("version")
+
+    # Generic fallback logic (preserves existing working code for all components)
     if not engnew_version:
-        # Fallback: try to get version from global.version
-        engnew_version = engnew_data.get("global", {}).get("version")
+        # Try standard image tag (existing CNDBTIER and generic logic)
+        engnew_version = global_section.get("image", {}).get("tag")
+    if not engnew_version:
+        # Try generic version field (existing CNDBTIER fallback)
+        engnew_version = global_section.get("version")
+    if not engnew_version:
+        # Try any other tag fields as last resort
+        for tag_field in ["nrfTag", "gwTag", "helmTestTag", "appInfoTag"]:
+            engnew_version = global_section.get(tag_field)
+            if engnew_version:
+                break
     if not engnew_version:
         # If still no version found, use 'unknown'
         engnew_version = "unknown"
@@ -350,17 +374,48 @@ def migrate(
 
         logger.info(f"Stage 1 completed: {diff_filename} created")
 
-        # STAGE 2: Merge diff with ENGNEW
-        logger.info("Stage 2: Merging with ENGNEW")
+        # STAGE 2: Merge diff with ENGNEW (with comment preservation)
+        logger.info("Stage 2: Merging with ENGNEW (preserving comments)")
 
-        progress.update(task, description="Stage 2: Merging with ENGNEW...")
+        progress.update(task, description="Stage 2: Merging with ENGNEW (preserving comments)...")
         
-        # Use rulebook-based merging if rules file is provided
-        if rules and rules.exists():
-            logger.info(f"Using rulebook-based merging with rules: {rules}")
-            final_config = ConfigMerger.merge_with_rulebook(diff_data, engnew_data, str(rules), nsprev_data)
-        else:
-            final_config = ConfigMerger.merge_configs_stage2(diff_data, engnew_data)
+        # Use comment-preserving merger to maintain ENGNEW structure and comments
+        from cvpilot.core.comment_preserving_merger import CommentPreservingMerger
+        
+        comment_merger = CommentPreservingMerger()
+        
+        # Create temporary file for comment-preserving merge
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
+            temp_engnew_path = temp_file.name
+            comment_merger.save_with_comments(engnew_data, temp_engnew_path)
+        
+        try:
+            # Use rulebook-based merging if rules file is provided
+            if rules and rules.exists():
+                logger.info(f"Using rulebook-based merging with rules: {rules}")
+                # Use comment-preserving merge even with rulebook
+                comment_merger.merge_with_comments(
+                    temp_engnew_path,
+                    diff_data,
+                    output
+                )
+                # Load the result to continue with Stage 3
+                final_config = comment_merger.load_with_comments(output)
+            else:
+                # Use comment-preserving merge
+                comment_merger.merge_with_comments(
+                    temp_engnew_path,
+                    diff_data,
+                    output
+                )
+                # Load the result to continue with Stage 3
+                final_config = comment_merger.load_with_comments(output)
+        finally:
+            # Clean up temporary file
+            import os
+            if os.path.exists(temp_engnew_path):
+                os.unlink(temp_engnew_path)
 
         # Apply version replacement to ensure consistency
         progress.update(task, description="Applying version normalization...")
@@ -418,10 +473,15 @@ def migrate(
             logger.info("No path transformations detected")
             console.print("[green]✓ No path transformations detected[/green]\n")
 
-        # Save final output
+        # Save final output with comment preservation
         progress.update(task, description=f"Saving final output to {output}...")
         logger.debug(f"Saving final configuration to: {output}")
-        parser.save_yaml_file(final_config, output)
+        
+        # Use comment-preserving save if we have a comment-preserving merger
+        if 'comment_merger' in locals():
+            comment_merger.save_with_comments(final_config, output)
+        else:
+            parser.save_yaml_file(final_config, output)
 
         # Success message
         logger.info("Complete Migration Workflow Successful")

@@ -8,61 +8,213 @@ merge strategy suggestions for list-type fields (annotations, labels, etc.).
 import copy
 from typing import Any, Dict, List, Set, Tuple, Optional
 from pathlib import Path
+from enum import Enum
+
+
+class ComponentType(Enum):
+    """Enumeration of supported Oracle Communications components."""
+    NRF = "ocnrf"
+    CNDBTIER = "occndbtier"
+    UDR = "ocudr"
+    UDM = "ocudm"
+    AUSF = "ocausf"
+    NSSF = "ocnssf"
+    PCF = "ocpcf"
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def detect_from_filename(cls, filename: str) -> 'ComponentType':
+        """
+        Detect component type from filename.
+
+        Args:
+            filename: YAML filename
+
+        Returns:
+            Detected component type
+        """
+        filename_lower = filename.lower()
+
+        if "ocnrf" in filename_lower or "nrf" in filename_lower:
+            return cls.NRF
+        elif "occndbtier" in filename_lower or "cndbtier" in filename_lower:
+            return cls.CNDBTIER
+        elif "ocudr" in filename_lower or "udr" in filename_lower:
+            return cls.UDR
+        elif "ocudm" in filename_lower or "udm" in filename_lower:
+            return cls.UDM
+        elif "ocausf" in filename_lower or "ausf" in filename_lower:
+            return cls.AUSF
+        elif "ocnssf" in filename_lower or "nssf" in filename_lower:
+            return cls.NSSF
+        elif "ocpcf" in filename_lower or "pcf" in filename_lower:
+            return cls.PCF
+        else:
+            return cls.UNKNOWN
+
+    @classmethod
+    def detect_from_content(cls, data: Dict[str, Any]) -> 'ComponentType':
+        """
+        Detect component type from YAML content.
+
+        Args:
+            data: YAML data dictionary
+
+        Returns:
+            Detected component type
+        """
+        # Check for component-specific markers in global section
+        global_section = data.get('global', {})
+
+        # NRF-specific markers
+        if 'nrfTag' in global_section or 'nrfInstanceId' in global_section:
+            return cls.NRF
+
+        # Check for NRF microservices
+        nrf_services = [
+            'nfregistration', 'nfsubscription', 'nfdiscovery',
+            'nfaccesstoken', 'nrfconfiguration', 'nrfauditor'
+        ]
+        if any(service in data for service in nrf_services):
+            return cls.NRF
+
+        # Check for ingress/egress gateway pattern (NRF)
+        if 'ingress-gateway' in data or 'egress-gateway' in data:
+            return cls.NRF
+
+        # CNDBTIER-specific markers
+        if any(key.startswith('mysql') for key in data.keys()):
+            return cls.CNDBTIER
+
+        # Check for CNDBTIER namespace or service indicators
+        if 'occne-cndbtier' in str(data).lower():
+            return cls.CNDBTIER
+
+        # Check for CNDBTIER-specific configuration patterns
+        if (global_section.get('mgmReplicaCount') is not None or
+            global_section.get('ndbReplicaCount') is not None or
+            global_section.get('namespace') == 'occne-cndbtier'):
+            return cls.CNDBTIER
+
+        return cls.UNKNOWN
 
 
 class ConflictAnalyzer:
     """Analyzes YAML files to detect conflicts and suggest merge strategies."""
-    
-    # List-type fields that should be analyzed for conflicts
-    LIST_FIELD_NAMES = {
-        'annotations', 'commonlabels', 'labels', 'podAnnotations', 
+
+    # Base list-type fields that should be analyzed for conflicts
+    BASE_LIST_FIELD_NAMES = {
+        'annotations', 'commonlabels', 'labels', 'podAnnotations',
         'egressannotations', 'service.labels', 'sqlgeorepsvclabels'
     }
-    
+
+    # NRF-specific fields that should be analyzed
+    NRF_SPECIFIC_FIELDS = {
+        'ingress-gateway', 'egress-gateway', 'nfregistration', 'nfsubscription',
+        'nfdiscovery', 'nfaccesstoken', 'nrfconfiguration', 'nrfauditor',
+        'mysql.primary', 'mysql.secondary', 'appValidate', 'errorResponseDueToEgwOverload',
+        'deprecatedList', 'relaxValidations'
+    }
+
+    # Component-specific field sets
+    COMPONENT_FIELDS = {
+        ComponentType.NRF: BASE_LIST_FIELD_NAMES | NRF_SPECIFIC_FIELDS,
+        ComponentType.CNDBTIER: BASE_LIST_FIELD_NAMES | {'mysql', 'database'},
+        ComponentType.UNKNOWN: BASE_LIST_FIELD_NAMES
+    }
+
     # Patterns that suggest site-specific content
     SITE_SPECIFIC_PATTERNS = {
-        'vz.webscale.com', 'cis.f5.com', 'oracle.com.cnc', 
-        'sidecar.istio.io', 'traffic.sidecar.istio.io'
+        'vz.webscale.com', 'cis.f5.com', 'oracle.com.cnc',
+        'sidecar.istio.io', 'traffic.sidecar.istio.io',
+        # NRF-specific site patterns
+        'customer.oracle.com', 'nrf.customer.com', 'prod.nrf'
     }
-    
+
     def __init__(self):
         self.conflicts = []
         self.suggestions = {}
+        self.detected_component = ComponentType.UNKNOWN
+        self.list_field_names = self.BASE_LIST_FIELD_NAMES
     
     def analyze_files(self, nsprev_path: str, engnew_path: str) -> Dict[str, Any]:
         """
         Analyze both files and generate merge rule suggestions.
-        
+
         Args:
             nsprev_path: Path to NSPREV file
             engnew_path: Path to ENGNEW file
-            
+
         Returns:
             Dictionary with analysis results and suggestions
         """
         from cvpilot.core.parser import YAMLParser
-        
+
         parser = YAMLParser()
         nsprev_data = parser.load_yaml_file(nsprev_path)
         engnew_data = parser.load_yaml_file(engnew_path)
-        
+
+        # Detect component type from files
+        self._detect_component_type(nsprev_path, engnew_path, nsprev_data, engnew_data)
+
         # Find all list-type fields in both files
         nsprev_lists = self._find_all_list_fields(nsprev_data)
         engnew_lists = self._find_all_list_fields(engnew_data)
-        
+
         # Detect conflicts
         self.conflicts = self._detect_conflicts(nsprev_lists, engnew_lists)
-        
+
         # Generate suggestions
         self.suggestions = self._generate_suggestions(self.conflicts)
-        
+
         return {
+            'component_type': self.detected_component.value,
             'conflicts': self.conflicts,
             'suggestions': self.suggestions,
             'nsprev_lists': nsprev_lists,
             'engnew_lists': engnew_lists,
             'summary': self._generate_summary()
         }
+
+    def _detect_component_type(self, nsprev_path: str, engnew_path: str,
+                              nsprev_data: Dict[str, Any], engnew_data: Dict[str, Any]) -> None:
+        """
+        Detect component type and adjust analysis accordingly.
+
+        Args:
+            nsprev_path: Path to NSPREV file
+            engnew_path: Path to ENGNEW file
+            nsprev_data: NSPREV data
+            engnew_data: ENGNEW data
+        """
+        # Try filename detection first
+        nsprev_component = ComponentType.detect_from_filename(Path(nsprev_path).name)
+        engnew_component = ComponentType.detect_from_filename(Path(engnew_path).name)
+
+        # If both files suggest the same component, use that
+        if nsprev_component != ComponentType.UNKNOWN and nsprev_component == engnew_component:
+            self.detected_component = nsprev_component
+        # Otherwise, try content detection
+        else:
+            nsprev_content_component = ComponentType.detect_from_content(nsprev_data)
+            engnew_content_component = ComponentType.detect_from_content(engnew_data)
+
+            if nsprev_content_component != ComponentType.UNKNOWN:
+                self.detected_component = nsprev_content_component
+            elif engnew_content_component != ComponentType.UNKNOWN:
+                self.detected_component = engnew_content_component
+            elif nsprev_component != ComponentType.UNKNOWN:
+                self.detected_component = nsprev_component
+            elif engnew_component != ComponentType.UNKNOWN:
+                self.detected_component = engnew_component
+            else:
+                self.detected_component = ComponentType.UNKNOWN
+
+        # Update field names based on detected component
+        self.list_field_names = self.COMPONENT_FIELDS.get(
+            self.detected_component,
+            self.BASE_LIST_FIELD_NAMES
+        )
     
     def _find_all_list_fields(self, data: Dict[str, Any], path: str = "") -> Dict[str, Any]:
         """
@@ -83,7 +235,7 @@ class ConflictAnalyzer:
             if isinstance(value, dict):
                 # Check if this dict field is one we care about
                 field_name = key.lower()
-                if any(list_field in field_name for list_field in self.LIST_FIELD_NAMES):
+                if any(list_field in field_name for list_field in self.list_field_names):
                     # This is a target field (like commonlabels dict)
                     fields[current_path] = value
                 else:
@@ -93,12 +245,12 @@ class ConflictAnalyzer:
             elif isinstance(value, list):
                 # Check if this is a list-type field we care about
                 field_name = key.lower()
-                if any(list_field in field_name for list_field in self.LIST_FIELD_NAMES):
+                if any(list_field in field_name for list_field in self.list_field_names):
                     fields[current_path] = value
             else:
                 # Check if this is a dict-type field we care about (like commonlabels)
                 field_name = key.lower()
-                if any(list_field in field_name for list_field in self.LIST_FIELD_NAMES):
+                if any(list_field in field_name for list_field in self.list_field_names):
                     fields[current_path] = value
         
         return fields
@@ -375,14 +527,18 @@ class ConflictAnalyzer:
 def generate_rulebook_from_analysis(analysis: Dict[str, Any]) -> Dict[str, Any]:
     """
     Generate merge_rules.yaml content from analysis results.
-    
+
     Args:
         analysis: Analysis results from ConflictAnalyzer
-        
+
     Returns:
         Dictionary representing the rulebook YAML structure
     """
+    component_type = analysis.get('component_type', 'unknown')
+
+    # Base rulebook structure
     rulebook = {
+        'default_strategy': 'engnew',
         'merge_rules': {
             'annotations': {
                 'strategy': 'merge',
@@ -407,6 +563,69 @@ def generate_rulebook_from_analysis(analysis: Dict[str, Any]) -> Dict[str, Any]:
         },
         'path_overrides': {}
     }
+
+    # Add component-specific rules
+    if component_type == 'ocnrf':
+        # NRF-specific merge rules
+        nrf_rules = {
+            'nrfTag': {
+                'strategy': 'engnew',
+                'scope': 'global'
+            },
+            'gwTag': {
+                'strategy': 'engnew',
+                'scope': 'global'
+            },
+            'deprecatedList': {
+                'strategy': 'nsprev',
+                'scope': 'global'
+            },
+            'relaxValidations': {
+                'strategy': 'nsprev',
+                'scope': 'global'
+            },
+            'mysql': {
+                'strategy': 'nsprev',
+                'scope': 'global'
+            },
+            'errorResponseDueToEgwOverload': {
+                'strategy': 'merge',
+                'scope': 'global'
+            },
+            'edgeDeploymentMode': {
+                'strategy': 'engnew',
+                'scope': 'global'
+            },
+            'backEndDeploymentMode': {
+                'strategy': 'engnew',
+                'scope': 'global'
+            }
+        }
+        rulebook['merge_rules'].update(nrf_rules)
+
+        # NRF-specific path overrides
+        nrf_path_overrides = {
+            'global.nrfTag': {'strategy': 'engnew'},
+            'global.gwTag': {'strategy': 'engnew'},
+            'global.deprecatedList': {'strategy': 'nsprev'},
+            'global.mysql.primary': {'strategy': 'nsprev'},
+            'global.mysql.secondary': {'strategy': 'nsprev'}
+        }
+        rulebook['path_overrides'].update(nrf_path_overrides)
+
+    elif component_type == 'occndbtier':
+        # CNDBTIER-specific rules
+        cndbtier_rules = {
+            'mysql': {
+                'strategy': 'nsprev',
+                'scope': 'global'
+            },
+            'database': {
+                'strategy': 'nsprev',
+                'scope': 'global'
+            }
+        }
+        rulebook['merge_rules'].update(cndbtier_rules)
     
     # Add path-specific overrides based on suggestions
     suggestions = analysis.get('suggestions', {})

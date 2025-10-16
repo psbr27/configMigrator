@@ -19,6 +19,9 @@ class YAMLParser:
         self.yaml.preserve_quotes = True
         self.yaml.width = 1000
         self.yaml.indent(mapping=2, sequence=4, offset=2)
+        # Enable comment preservation
+        self.yaml.preserve_quotes = True
+        self.yaml.width = 1000
 
     def load_yaml_file(self, file_path: str) -> Dict[str, Any]:
         """
@@ -74,6 +77,38 @@ class YAMLParser:
             normalized_data = self._normalize_annotations_lists(data)
             with open(file_path, "w", encoding="utf-8") as file:
                 self.yaml.dump(normalized_data, file)
+        except Exception as e:
+            raise ValueError(f"Error writing to {file_path}: {e}")
+    
+    def load_yaml_with_comments(self, file_path: str):
+        """
+        Load YAML file preserving comments and structure.
+        
+        Args:
+            file_path: Path to YAML file
+            
+        Returns:
+            ruamel.yaml CommentedMap with preserved comments
+        """
+        try:
+            with open(file_path, encoding="utf-8") as file:
+                return self.yaml.load(file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File not found: {file_path}")
+        except Exception as e:
+            raise ValueError(f"Invalid YAML syntax in {file_path}: {e}")
+    
+    def save_yaml_with_comments(self, data, file_path: str) -> None:
+        """
+        Save YAML data preserving comments and structure.
+        
+        Args:
+            data: ruamel.yaml CommentedMap or dict to save
+            file_path: Output file path
+        """
+        try:
+            with open(file_path, "w", encoding="utf-8") as file:
+                self.yaml.dump(data, file)
         except Exception as e:
             raise ValueError(f"Error writing to {file_path}: {e}")
 
