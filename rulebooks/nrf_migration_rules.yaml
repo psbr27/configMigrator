@@ -1,0 +1,78 @@
+default_strategy: engnew
+merge_rules:
+  annotations:
+    strategy: merge
+    scope: global
+  commonlabels:
+    strategy: merge
+    scope: global
+  labels:
+    strategy: engnew
+    scope: global
+  podAnnotations:
+    strategy: merge
+    scope: global
+  egressannotations:
+    strategy: merge
+    scope: global
+  nrfTag:
+    strategy: engnew
+    scope: global
+  gwTag:
+    strategy: engnew
+    scope: global
+  deprecatedList:
+    strategy: nsprev
+    scope: global
+  relaxValidations:
+    strategy: nsprev
+    scope: global
+  mysql:
+    strategy: nsprev
+    scope: global
+  errorResponseDueToEgwOverload:
+    strategy: merge
+    scope: global
+  edgeDeploymentMode:
+    strategy: engnew
+    scope: global
+  backEndDeploymentMode:
+    strategy: engnew
+    scope: global
+path_overrides:
+  global.nrfTag:
+    strategy: engnew
+  global.gwTag:
+    strategy: engnew
+  global.deprecatedList:
+    strategy: nsprev
+  global.mysql.primary:
+    strategy: nsprev
+  global.mysql.secondary:
+    strategy: nsprev
+  nfdiscovery:
+    strategy: merge
+  global.customExtension.allResources.labels:
+    strategy: merge
+  nrfauditor:
+    strategy: merge
+  global.customExtension.lbDeployments.labels:
+    strategy: merge
+  nfregistration:
+    strategy: merge
+  global.customExtension.nonlbDeployments.annotations:
+    strategy: merge
+  nrfconfiguration:
+    strategy: merge
+  global.customExtension.lbDeployments.annotations:
+    strategy: merge
+  nfsubscription:
+    strategy: merge
+  egress-gateway:
+    strategy: merge
+  ingress-gateway:
+    strategy: merge
+  global.customExtension.allResources.annotations:
+    strategy: merge
+  nfaccesstoken:
+    strategy: merge
